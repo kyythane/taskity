@@ -7,16 +7,16 @@
 # General application configuration
 use Mix.Config
 
-config :app,
-  ecto_repos: [App.Repo]
+config :taskity,
+  ecto_repos: [Taskity.Repo]
 
 # Configures the endpoint
-config :app, AppWeb.Endpoint,
+config :taskity, TaskityWeb.Endpoint,
   url: [host: "localhost"],
-  secret_key_base: "pRUQRyL/bJKLPwIsjvr1jaU4HjLvaIRIJTSXY5xkIE/yFF08evLkt16ImFpnz/fr",
-  render_errors: [view: AppWeb.ErrorView, accepts: ~w(json), layout: false],
-  pubsub_server: App.PubSub,
-  live_view: [signing_salt: "XerJJnI2"]
+  secret_key_base: "tYXpZ3sgU91ztLmJXRZZf0h4SyvHsTNmB3KmwxMKcttvjXmmilGBb3qCMsBg5V5o",
+  render_errors: [view: TaskityWeb.ErrorView, accepts: ~w(json), layout: false],
+  pubsub_server: Taskity.PubSub,
+  live_view: [signing_salt: "dsqNE+Zu"]
 
 # Configures Elixir's Logger
 config :logger, :console,

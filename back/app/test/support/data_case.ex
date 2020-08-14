@@ -1,4 +1,4 @@
-defmodule App.DataCase do
+defmodule Taskity.DataCase do
   @moduledoc """
   This module defines the setup for tests requiring
   access to the application's data layer.
@@ -10,7 +10,7 @@ defmodule App.DataCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use App.DataCase, async: true`, although
+  by setting `use Taskity.DataCase, async: true`, although
   this option is not recommended for other databases.
   """
 
@@ -18,20 +18,20 @@ defmodule App.DataCase do
 
   using do
     quote do
-      alias App.Repo
+      alias Taskity.Repo
 
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
-      import App.DataCase
+      import Taskity.DataCase
     end
   end
 
   setup tags do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(App.Repo)
+    :ok = Ecto.Adapters.SQL.Sandbox.checkout(Taskity.Repo)
 
     unless tags[:async] do
-      Ecto.Adapters.SQL.Sandbox.mode(App.Repo, {:shared, self()})
+      Ecto.Adapters.SQL.Sandbox.mode(Taskity.Repo, {:shared, self()})
     end
 
     :ok

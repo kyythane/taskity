@@ -1,4 +1,4 @@
-# App
+# Taskity
 
 To start your Phoenix server:
 

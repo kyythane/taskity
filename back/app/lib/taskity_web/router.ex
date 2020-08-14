@@ -1,11 +1,11 @@
-defmodule AppWeb.Router do
-  use AppWeb, :router
+defmodule TaskityWeb.Router do
+  use TaskityWeb, :router
 
   pipeline :api do
     plug :accepts, ["json"]
   end
 
-  scope "/api", AppWeb do
+  scope "/api", TaskityWeb do
     pipe_through :api
   end
 
@@ -21,7 +21,7 @@ defmodule AppWeb.Router do
 
     scope "/" do
       pipe_through [:fetch_session, :protect_from_forgery]
-      live_dashboard "/dashboard", metrics: AppWeb.Telemetry
+      live_dashboard "/dashboard", metrics: TaskityWeb.Telemetry
     end
   end
 end

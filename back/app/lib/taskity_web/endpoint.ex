@@ -1,16 +1,16 @@
-defmodule AppWeb.Endpoint do
-  use Phoenix.Endpoint, otp_app: :app
+defmodule TaskityWeb.Endpoint do
+  use Phoenix.Endpoint, otp_app: :taskity
 
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
   # Set :encryption_salt if you would also like to encrypt it.
   @session_options [
     store: :cookie,
-    key: "_app_key",
-    signing_salt: "LGucFbcB"
+    key: "_taskity_key",
+    signing_salt: "ypViMvl7"
   ]
 
-  socket "/socket", AppWeb.UserSocket,
+  socket "/socket", TaskityWeb.UserSocket,
     websocket: true,
     longpoll: false
 
@@ -22,7 +22,7 @@ defmodule AppWeb.Endpoint do
   # when deploying your static files in production.
   plug Plug.Static,
     at: "/",
-    from: :app,
+    from: :taskity,
     gzip: false,
     only: ~w(css fonts images js favicon.ico robots.txt)
 
@@ -30,7 +30,7 @@ defmodule AppWeb.Endpoint do
   # :code_reloader configuration of your endpoint.
   if code_reloading? do
     plug Phoenix.CodeReloader
-    plug Phoenix.Ecto.CheckRepoStatus, otp_app: :app
+    plug Phoenix.Ecto.CheckRepoStatus, otp_app: :taskity
   end
 
   plug Phoenix.LiveDashboard.RequestLogger,
@@ -48,5 +48,5 @@ defmodule AppWeb.Endpoint do
   plug Plug.MethodOverride
   plug Plug.Head
   plug Plug.Session, @session_options
-  plug AppWeb.Router
+  plug TaskityWeb.Router
 end
