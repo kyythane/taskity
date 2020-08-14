@@ -22,7 +22,6 @@
 
 <script lang="ts">
     export let name: string;
-    let n = '';
 </script>
 
 <main>

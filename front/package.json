@@ -1,12 +1,16 @@
 {
   "name": "taskity",
+  "description": "A taks tracking application",
   "version": "1.0.0",
   "license": "Unlicense",
   "scripts": {
     "build": "rollup -c",
     "dev": "rollup -c -w",
     "start": "sirv public --single",
-    "validate": "svelte-check"
+    "validate": "npm run check && npm run typecheck && npm run lint",
+    "check": "svelte-check",
+    "typecheck": "tsc -p ./tsconfig.json",
+    "lint": "eslint --fix"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^14.0.0",
