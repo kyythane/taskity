@@ -13,7 +13,7 @@
     "parserOptions": {
         "ecmaVersion": 6,
         "sourceType": "module",
-        "impliedStrict": true,
+        "impliedStrict": true
     },
     "plugins": [
         "@typescript-eslint",
@@ -31,4 +31,4 @@
     "rules": {
         "prettier/prettier": "error"
     }
-};
+}
