@@ -22,7 +22,7 @@
 
 <script lang="ts">
     import { setClient } from 'svelte-apollo';
-    import { buildClient } from './services/Apollo';
+    import { buildClient } from './services/apollo';
     setClient(buildClient());
     export let name: string;
 </script>
