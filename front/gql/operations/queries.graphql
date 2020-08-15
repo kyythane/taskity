@@ -1,0 +1,6 @@
+query items_query($id: ID!) {
+  item(id: $id) {
+    id,
+    name,
+  }
+}

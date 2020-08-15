@@ -1,0 +1,12 @@
+schema {
+  query: RootQueryType
+}
+
+type Item {
+  id: ID
+  name: String
+}
+
+type RootQueryType {
+  item(id: ID!): Item
+}

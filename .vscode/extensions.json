@@ -1,6 +1,7 @@
 {
   "recommendations": [
     "svelte.svelte-vscode",
-    "jakebecker.elixir-ls"
+    "jakebecker.elixir-ls",
+    "apollographql.vscode-apollo"
   ],
 }

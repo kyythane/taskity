@@ -4,13 +4,14 @@
   "version": "1.0.0",
   "license": "Unlicense",
   "scripts": {
-    "build": "rollup -c",
+    "build:app": "rollup -c",
+    "build:gql": "cd ../back/app && mix absinthe.schema.sdl --schema TaskityWeb.Schema ../../front/gql/schema.graphql && cd ../../front && apollo client:codegen --target typescript --includes gql/operations/**/* --outputFlat src/generated",
+    "check:all": "npm run check && npm run typecheck && npm run lint",
+    "check:svelte": "svelte-check",
+    "check:type": "tsc -p ./tsconfig.json",
+    "check:lint": "eslint --fix",
     "dev": "rollup -c -w",
-    "start": "sirv public --single",
-    "validate": "npm run check && npm run typecheck && npm run lint",
-    "check": "svelte-check",
-    "typecheck": "tsc -p ./tsconfig.json",
-    "lint": "eslint --fix"
+    "start": "sirv public --single"
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^14.0.0",
@@ -36,6 +37,16 @@
     "typescript": "^3.9.3"
   },
   "dependencies": {
-    "sirv-cli": "^1.0.0"
+    "@absinthe/socket": "^0.2.1",
+    "@absinthe/socket-apollo-link": "^0.2.1",
+    "apollo-cache-inmemory": "^1.6.6",
+    "apollo-client": "^2.6.10",
+    "apollo-link": "^1.2.14",
+    "apollo-link-context": "^1.0.20",
+    "apollo-link-http": "^1.5.17",
+    "graphql": "^15.3.0",
+    "phoenix": "^1.5.4",
+    "sirv-cli": "^1.0.0",
+    "svelte-apollo": "^0.3.0"
   }
 }
