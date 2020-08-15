@@ -1,4 +1,4 @@
-query items_query($id: ID!) {
+query ItemsQuery($id: ID!) {
   item(id: $id) {
     id,
     name,

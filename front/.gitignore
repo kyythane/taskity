@@ -3,4 +3,5 @@
 /cypress/screenshots/
 /public/build/
 /src/generated/
+/src/**/*.js
 **/*.map
