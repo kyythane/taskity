@@ -10,7 +10,7 @@ const production = !process.env.ROLLUP_WATCH;
 
 function serve() {
 	let server;
-	
+
 	function toExit() {
 		if (server) server.kill(0);
 	}
@@ -34,7 +34,7 @@ export default {
 	output: {
 		sourcemap: true,
 		format: 'iife',
-		name: 'app',
+		name: 'taskity',
 		file: 'public/build/bundle.js'
 	},
 	plugins: [
@@ -46,7 +46,11 @@ export default {
 			css: css => {
 				css.write('public/build/bundle.css');
 			},
-			preprocess: sveltePreprocess(),
+			preprocess: sveltePreprocess({
+				postcss: {
+					configFilePath: '',
+				}
+			}),
 		}),
 
 		// If you have external dependencies installed from

@@ -2,6 +2,7 @@
   "recommendations": [
     "svelte.svelte-vscode",
     "jakebecker.elixir-ls",
-    "apollographql.vscode-apollo"
+    "apollographql.vscode-apollo",
+    "bradlc.vscode-tailwindcss"
   ],
 }
