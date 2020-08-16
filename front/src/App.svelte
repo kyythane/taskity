@@ -7,17 +7,11 @@
 </style>
 
 <script lang="ts">
+    import { Router } from '@sveltech/routify';
+    import { routes } from '@sveltech/routify/tmp/routes';
     /*import { setClient } from 'svelte-apollo';
     import { buildClient } from './services/apollo';
     setClient(buildClient());*/
-    export let name: string;
 </script>
 
-<main>
-    <h1 class="bg-gray-500">Hello {name}!</h1>
-    <p>
-        Visit the
-        <a href="https://svelte.dev/tutorial">Svelte tutorial</a>
-        to learn how to build Svelte apps.
-    </p>
-</main>
+<Router {routes} />
