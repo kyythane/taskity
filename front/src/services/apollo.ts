@@ -1,13 +1,15 @@
-import ApolloClient from 'apollo-client';
-import { create } from '@absinthe/socket';
-import type { ApolloLink } from 'apollo-link';
-import { createAbsintheSocketLink } from '@absinthe/socket-apollo-link';
 import { Socket as PhoenixSocket } from 'phoenix';
-import { InMemoryCache } from 'apollo-cache-inmemory';
 import Cookies from 'js-cookie';
+//import { create } from "@absinthe/socket";
+
+/*import ApolloClient from 'apollo-client';
+import type { ApolloLink } from 'apollo-link';
+import { InMemoryCache } from 'apollo-cache-inmemory';
+*/
 
 // TODO: if the apollo 3 version of this lands ever, upgrade to 3!
-export function buildClient() {
+export const buildClient = () => {
+
 
     const phoenixSocket = new PhoenixSocket('ws://localhost:4000/socket', {
         params: () => {
@@ -18,12 +20,13 @@ export function buildClient() {
             }
         }
     });
-    const absintheSocket = create(phoenixSocket);
+    //const absintheSocket = create(phoenixSocket);
+    //console.log('executing', !!absintheSocket ? 'socket loaded' : ':(');
     // The type defintions are wrong, but afaict the code is right?
-    const link = createAbsintheSocketLink(absintheSocket) as unknown as ApolloLink;
-
+    /*const link = createAbsintheSocketLink(absintheSocket) as unknown as ApolloLink;
+ 
     return new ApolloClient({
-        link,
+        //  link,
         cache: new InMemoryCache(),
-    });
-}
+    });*/
+};
