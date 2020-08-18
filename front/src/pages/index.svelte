@@ -1,1 +1,5 @@
-<h1 class="text-2xl">Test</h1>
+<script lang="ts">
+    import TaskBoard from '../components/kanban/TaskBoard.svelte';
+</script>
+
+<TaskBoard />
