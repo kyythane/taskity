@@ -1,7 +1,26 @@
 <style>
     .resizable {
         transition: width 200ms ease-in-out;
+        min-width: 1rem;
     }
+
+    .inner {
+        width: fit-content;
+    }
+
+    .base {
+        @apply inline-block;
+        @apply text-center;
+        @apply leading-4;
+        @apply object-contain;
+        @apply rounded-full;
+        @apply text-sm;
+        @apply h-4;
+        @apply m-1;
+        @apply whitespace-no-wrap;
+        @apply overflow-hidden;
+    }
+
     :global(.yellow) {
         @apply bg-yellow-400;
         @apply text-yellow-900;
@@ -41,8 +60,22 @@
 </style>
 
 <script lang="ts">
-    export let text: string = 'A long label';
-    export let size: 'compact' | 'full' = 'compact';
+    import { tick, onMount } from 'svelte';
+    export let type: 'compact' | 'full' | 'expanding' = 'compact';
+    let size: 'compact' | 'full';
+    $: {
+        switch (type) {
+            case 'compact':
+                size = 'compact';
+                break;
+            case 'full':
+                size = 'full';
+                break;
+            case 'expanding':
+                size = 'compact';
+                break;
+        }
+    }
     export let color:
         | 'yellow'
         | 'pink'
@@ -53,13 +86,52 @@
         | 'blue'
         | 'teal'
         | 'green';
-    let initial = text.length > 0 ? text[0] : '';
+    let wrapper: HTMLDivElement | undefined;
+    let innerWidth: number = 0;
+
+    const expand = () => {
+        if (type === 'expanding') {
+            setSize('full');
+        }
+    };
+
+    const collapse = () => {
+        if (type === 'expanding') {
+            setSize('compact');
+        }
+    };
+    const setSize = async (newSize: 'compact' | 'full') => {
+        size = newSize;
+        if (size === 'compact') {
+            wrapper!.style.width = '1rem';
+        } else {
+            await tick();
+            wrapper!.style.width = `${innerWidth}px`;
+        }
+    };
 </script>
 
-<div
-    on:mouseover="{() => (size = 'full')}"
-    on:mouseout="{() => (size = 'compact')}"
-    class="{`text-center leading-4 object-contain rounded-full text-sm ${size === 'compact' ? 'w-4' : 'w-24'} h-4 m-1 ${color} resizable whitespace-no-wrap overflow-hidden`}"
->
-    {size === 'compact' ? initial : text}
-</div>
+{#if type === 'expanding'}
+    <div
+        on:mousemove="{expand}"
+        on:mouseleave="{collapse}"
+        class="{`base ${color} resizable`}"
+        bind:this="{wrapper}"
+    >
+        <div class="inner" bind:clientWidth="{innerWidth}">
+            {#if size === 'compact'}
+                <slot name="compact" />
+            {:else}
+                <slot name="full" />
+            {/if}
+        </div>
+    </div>
+{:else if type === 'full'}
+    <div class="{`base ${color} inner`}" bind:this="{wrapper}">
+        <slot name="full" />
+    </div>
+{:else}
+    <div class="{`base ${color} w-4`}" bind:this="{wrapper}">
+        <slot name="compact" />
+    </div>
+{/if}
