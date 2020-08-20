@@ -16,8 +16,8 @@
 </script>
 
 <section
-    class="rounded-md border-2 border-gray-600 overflow-y-scroll h-full w-64
-    bg-gray-200"
+    class="rounded-md border-2 border-gray-900 overflow-y-scroll h-full w-64
+    bg-gray-100 ml-12"
 >
     {#if columnTitle}
         <h2>{columnTitle}</h2>
