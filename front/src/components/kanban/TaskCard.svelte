@@ -1,63 +1,62 @@
 <script lang="ts">
-    import type { CardData } from './CardData';
     import { fade } from 'svelte/transition';
+    import { selectedTasks } from './stores';
+    import type { CardData } from './CardData';
     import Tag from '../utility/Tag.svelte';
-    let type: 'compact' | 'expanding' = 'compact';
+    let hovered: boolean = false;
+    let checked: boolean = false;
     export let cardData: CardData;
+
+    const onMouseIn = () => {
+        hovered = true;
+    };
+
+    const onMouseOut = () => {
+        hovered = false;
+    };
+
+    $: {
+        if (checked) {
+            selectedTasks.update((selectedTasks) => [
+                ...selectedTasks,
+                cardData.id,
+            ]);
+        } else {
+            selectedTasks.update((selectedTasks) =>
+                selectedTasks.filter((taskId) => taskId !== cardData.id)
+            );
+        }
+    }
 </script>
 
 <svelte:options immutable />
 <div
-    on:mouseover="{() => (type = 'expanding')}"
-    on:mouseleave="{() => (type = 'compact')}"
+    on:mouseover="{onMouseIn}"
+    on:mouseleave="{onMouseOut}"
     class="rounded-md h-32 w-64 bg-white p-4 mt-2"
 >
+    {#if $selectedTasks.length > 0 || hovered}
+        <input
+            type="checkbox"
+            bind:checked
+            transition:fade="{{ duration: 200 }}"
+        />
+    {/if}
     <h3>{cardData.title}</h3>
-    <div class="flex flex-wrap w-64 p-2">
-        <Tag color="pink" {type}>
-            <p
-                slot="full"
-                class="mr-2 ml-2 cursor-pointer"
-                transition:fade="{{ duration: 200 }}"
+    <div class="flex flex-wrap w-64 mt-1">
+        {#each cardData.labels as label (label.id)}
+            <Tag
+                color="{label.color}"
+                type="{hovered ? 'expanding' : 'compact'}"
             >
-                Category 1
-            </p>
-        </Tag>
-        <Tag color="yellow" {type}>
-            <p
-                slot="full"
-                class="mr-2 ml-2 cursor-pointer"
-                transition:fade="{{ duration: 200 }}"
-            >
-                Category 2
-            </p>
-        </Tag>
-        <Tag color="green" {type}>
-            <p
-                slot="full"
-                class="mr-2 ml-2 cursor-pointer"
-                transition:fade="{{ duration: 200 }}"
-            >
-                Category 3
-            </p>
-        </Tag>
-        <Tag color="indigo" {type}>
-            <p
-                slot="full"
-                class="mr-2 ml-2 cursor-pointer"
-                transition:fade="{{ duration: 200 }}"
-            >
-                Category 4
-            </p>
-        </Tag>
-        <Tag color="purple" {type}>
-            <p
-                slot="full"
-                class="mr-2 ml-2 cursor-pointer"
-                transition:fade="{{ duration: 200 }}"
-            >
-                Category 5
-            </p>
-        </Tag>
+                <p
+                    slot="full"
+                    class="mr-2 ml-2 cursor-pointer"
+                    transition:fade="{{ duration: 200 }}"
+                >
+                    {label.text}
+                </p>
+            </Tag>
+        {/each}
     </div>
 </div>

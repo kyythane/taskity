@@ -17,7 +17,7 @@
 
 <section
     class="rounded-md border-2 border-gray-900 overflow-y-scroll h-full w-64
-    bg-gray-100 ml-12"
+    bg-gray-100"
 >
     {#if columnTitle}
         <h2>{columnTitle}</h2>
@@ -26,7 +26,7 @@
         use:dndzone="{{ items: columnData, flipDurationMs }}"
         on:consider="{handleDndConsider}"
         on:finalize="{handleDndFinalize}"
-        class="overflow-y-scroll h-full w-full"
+        class="overflow-y-scroll h-full w-full overscroll-contain"
     >
         {#each columnData as cardData (cardData.id)}
             <div animate:flip="{{ duration: flipDurationMs }}">
