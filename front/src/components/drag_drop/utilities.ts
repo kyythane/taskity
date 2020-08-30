@@ -1,4 +1,4 @@
-import type { Rect } from "./stores";
+import type { Rect, HoverResult } from "./stores";
 
 export function makeDraggableElement(originalElement: HTMLDivElement) {
     const rect = originalElement.getBoundingClientRect();
@@ -32,7 +32,7 @@ export function computeMidpoint(rect: Rect) {
     return { x: rect.width / 2 + rect.x, y: rect.height / 2 + rect.y };
 }
 
-export function stripPadding(element: HTMLElement, rect: Rect) {
+export function removePaddingFromRect(element: HTMLElement, rect: Rect) {
     const top = pixelStringToNumber(element.style.paddingTop);
     const left = pixelStringToNumber(element.style.paddingLeft);
     const right = pixelStringToNumber(element.style.paddingRight);
@@ -42,4 +42,12 @@ export function stripPadding(element: HTMLElement, rect: Rect) {
 
 export function pixelStringToNumber(pixelString: string) {
     return (pixelString && pixelString.length > 0) ? Number.parseFloat(pixelString.substring(0, pixelString.length - 2)) : 0;
+}
+
+export function removePaddingFromHoverResult(result: HoverResult) {
+    if (result.placement === 'before') {
+        result.element.style.paddingTop = '';
+    } else {
+        result.element.style.paddingBottom = '';
+    }
 }

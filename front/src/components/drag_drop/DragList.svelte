@@ -16,7 +16,8 @@
         makeDraggableElement,
         overlap,
         percentOverlap,
-        stripPadding,
+        removePaddingFromRect,
+        removePaddingFromHoverResult,
     } from './utilities';
     import { dragging, dropTargets, dragTarget, dropTargetId } from './stores';
 
@@ -31,25 +32,28 @@
     } from './stores';
 
     const DRAG_THRESHOLD = 25;
+    const ANIMATION_MS = 200;
 
     export let items: Array<Item>;
     export let key: string | undefined = undefined;
     export let capacity = Number.POSITIVE_INFINITY;
+    export let disabled: boolean = false;
     export const id = dropTargetId.next();
 
     let cachedItems: Array<Item> = [];
     let cachedRects: Array<Rect | undefined> = [];
+    let cachedDropZoneRect: Rect;
+    let cachedCapacity = capacity;
+    let cachedDisabled = disabled;
+    let cachedDisplay: string | undefined;
     let wrappingElements: { [id: string]: HTMLDivElement } = {};
     let dropZone: HTMLDivElement;
     let width: number = 0;
     let height: number = 0;
-    let cachedDropZoneRect: Rect;
-    let cachedCapacity = capacity;
     let mounted = false;
     let potentiallyDraggedItem: Item | undefined = undefined;
     let currentlyDraggingOver: HoverResult = undefined;
     let previouslyDraggedOver: HoverResult[] = [];
-    let cachedDisplay: string | undefined;
     let draggableDragStart: [number, number] | undefined = undefined;
     let handleDelayedEvent: (() => void) | undefined;
     // Tweened isn't exported, so use Writable since it is _mostly_ correct
@@ -96,16 +100,29 @@
             event.preventDefault();
             if (!!currentDropTarget) {
                 $dragging = 'dropping';
-                const rect = currentDropTarget.hoverResult
-                    ? currentDropTarget.hoverResult.element.getBoundingClientRect()
-                    : currentDropTarget.dropTarget.rect;
-                const position: [number, number] = [
-                    rect.x - $dragTarget.sourceRect.x,
-                    rect.y - $dragTarget.sourceRect.y,
-                ];
-                if (!!currentlyDraggingOver) {
-                    startDragOff();
+                let offset: { x: number; y: number };
+                // go go gadget structural typing
+                if (!!currentDropTarget.hoverResult) {
+                    const boundingRect = currentDropTarget.hoverResult.element.getBoundingClientRect();
+                    if (currentDropTarget.hoverResult.placement === 'before') {
+                        offset = boundingRect;
+                    } else {
+                        const strippedRect = removePaddingFromRect(
+                            currentDropTarget.hoverResult.element,
+                            boundingRect
+                        );
+                        offset = {
+                            x: boundingRect.x,
+                            y: boundingRect.y + strippedRect.height,
+                        };
+                    }
+                } else {
+                    offset = currentDropTarget.dropTarget.rect;
                 }
+                const position: [number, number] = [
+                    offset.x - $dragTarget.sourceRect.x,
+                    offset.y - $dragTarget.sourceRect.y,
+                ];
                 await dragTween.set(position);
                 currentDropTarget.dropTarget.dropCallback(
                     currentDropTarget.hoverResult
@@ -142,7 +159,7 @@
         item: Item,
         delayedEvent?: (event: MouseEvent) => void
     ) => {
-        if (event.button === 0) {
+        if (!cachedDisabled && event.button === 0) {
             draggableDragStart = [event.clientX, event.clientY];
             potentiallyDraggedItem = { ...item };
             if (!!delayedEvent) {
@@ -184,7 +201,7 @@
                     cachedRect: cloned.getBoundingClientRect(),
                 };
                 dragTween = tweened([0, 0], {
-                    duration: 300,
+                    duration: ANIMATION_MS,
                     easing: cubicOut,
                 });
                 potentiallyDraggedItem = undefined;
@@ -193,7 +210,7 @@
                 currentDropTarget = undefined;
                 previouslyDraggedOver = [];
                 sourceElementTween = tweened($dragTarget.sourceRect.height, {
-                    duration: 300,
+                    duration: ANIMATION_MS,
                     easing: cubicOut,
                 });
                 containingElement.style.height = `${$dragTarget.sourceRect.height}px`;
@@ -211,14 +228,24 @@
             }
         }
     };
+
     const dropCallback: DropCallback = (drop: HoverResult | undefined) => {
-        const dropIndex = drop?.index ?? 0;
+        let dropIndex: number;
+        if (!!drop) {
+            if (drop.placement === 'before') {
+                dropIndex = drop.index;
+            } else {
+                dropIndex = drop.index + 1;
+            }
+        } else {
+            dropIndex = 0;
+        }
         // Always filter because it isn't that expensive and it avoids special casing dropping back in the same list (as much as possible)
         const firstSection = cachedItems
-            .slice(0, dropIndex + 1)
+            .slice(0, dropIndex)
             .filter((cachedItem) => cachedItem.id !== $dragTarget.item.id);
         const secondSection = cachedItems
-            .slice(dropIndex + 1)
+            .slice(dropIndex)
             .filter((cachedItem) => cachedItem.id !== $dragTarget.item.id);
         const listSnapshot = [
             ...firstSection,
@@ -228,6 +255,11 @@
         const finalIndex = listSnapshot.findIndex(
             (snapshotItem) => snapshotItem.id === $dragTarget.item.id
         );
+        if (!!currentlyDraggingOver) {
+            removePaddingFromHoverResult(currentlyDraggingOver);
+            currentlyDraggingOver = undefined;
+            hoverEnterElementTween = undefined;
+        }
         dispatch('itemdroppedin', {
             item: $dragTarget.item,
             index: finalIndex,
@@ -247,14 +279,14 @@
         let startingHeight = 0;
         if (draggedOffIndex > -1) {
             previouslyDraggedOver = previouslyDraggedOver.filter(
-                (_, index) => index === draggedOffIndex
+                (_, index) => index !== draggedOffIndex
             );
             const heights = $hoverLeaveElementTweens;
             startingHeight = heights[draggedOffIndex];
             hoverLeaveElementTweens = tweened(
-                heights.filter((_, index) => index === draggedOffIndex),
+                heights.filter((_, index) => index !== draggedOffIndex),
                 {
-                    duration: 300,
+                    duration: ANIMATION_MS,
                     easing: cubicOut,
                 }
             );
@@ -262,29 +294,37 @@
 
         currentlyDraggingOver = hoverResult;
         hoverEnterElementTween = tweened(startingHeight, {
-            duration: 300,
+            duration: ANIMATION_MS,
             easing: cubicOut,
         });
         hoverEnterElementTween.set($dragTarget.cachedRect.height);
     };
 
     const startDragOff = () => {
+        const indexOfCurrent = previouslyDraggedOver.findIndex(
+            (prev) =>
+                prev.item.id === currentlyDraggingOver.item.id &&
+                prev.placement === currentlyDraggingOver.placement
+        );
+        let previousTweenValues = !!hoverLeaveElementTweens
+            ? $hoverLeaveElementTweens
+            : [];
+        if (indexOfCurrent >= 0) {
+            previouslyDraggedOver = previouslyDraggedOver.filter(
+                (_, index) => index !== indexOfCurrent
+            );
+            previousTweenValues = previousTweenValues.filter(
+                (_, index) => index !== indexOfCurrent
+            );
+        }
         previouslyDraggedOver = [
             ...previouslyDraggedOver,
             currentlyDraggingOver,
         ];
-        let collapseTween = tweened($hoverEnterElementTween, {
-            duration: 300,
-            easing: cubicOut,
-        });
-        collapseTween.set(0);
-        const previousTweenValues = !!hoverLeaveElementTweens
-            ? $hoverLeaveElementTweens
-            : [];
         hoverLeaveElementTweens = tweened(
             [...previousTweenValues, $hoverEnterElementTween],
             {
-                duration: 300,
+                duration: ANIMATION_MS,
                 easing: cubicOut,
             }
         );
@@ -296,6 +336,12 @@
     };
 
     const hoverCallback: HoverCallback = () => {
+        if (cachedItems.length === 0) {
+            if (!!currentlyDraggingOver) {
+                startDragOff();
+            }
+            return undefined;
+        }
         let overlapped = false;
         const overlapping = [];
         for (let index = 0; index < cachedItems.length; index++) {
@@ -308,7 +354,10 @@
                 cachedRects[index] = element.getBoundingClientRect();
             }
             let overlaps = overlap($dragTarget.cachedRect, cachedRects[index]!);
-            let rectWithoutPadding = stripPadding(element, cachedRects[index]!);
+            let rectWithoutPadding = removePaddingFromRect(
+                element,
+                cachedRects[index]!
+            );
             let placement =
                 computeMidpoint(rectWithoutPadding).y >
                 computeMidpoint($dragTarget.cachedRect).y
@@ -326,11 +375,16 @@
                 break;
             }
         }
+        // Since cachedItems must be non-empty. If nothing overlaps, we are past the end of the list.
         if (overlapping.length === 0) {
-            if (!!currentlyDraggingOver) {
-                startDragOff();
-            }
-            return undefined;
+            const lastIndex = cachedItems.length - 1;
+            const lastItem = cachedItems[lastIndex];
+            overlapping.push({
+                index: lastIndex,
+                item: lastItem,
+                element: wrappingElements[lastItem.id],
+                placement: 'after',
+            });
         }
         const midpoint = Math.trunc(
             (overlapping[0].index + overlapping[overlapping.length - 1].index) /
@@ -364,7 +418,6 @@
 
     const dragLeave = () => {
         if (!!currentlyDraggingOver) {
-            console.log('drag off (leave)', currentlyDraggingOver);
             startDragOff();
         }
     };
@@ -373,6 +426,7 @@
         if (mounted) {
             let updatedRect = false;
             let updatedCapacity = false;
+            let updatedDisabled = false;
             if (
                 cachedDropZoneRect.width !== width ||
                 cachedDropZoneRect.height !== height
@@ -392,7 +446,12 @@
                 updatedCapacity = true;
             }
 
-            if (updatedRect || updatedCapacity) {
+            if (disabled !== cachedDisabled) {
+                cachedDisabled = disabled;
+                updatedDisabled = true;
+            }
+
+            if (updatedRect || updatedCapacity || updatedDisabled) {
                 $dropTargets = [
                     ...$dropTargets.filter((dt) => dt.id !== id),
                     {
@@ -400,6 +459,7 @@
                         key,
                         capacity: cachedCapacity,
                         rect: cachedDropZoneRect,
+                        disabled: cachedDisabled,
                         dropElement: dropZone,
                         dropCallback,
                         hoverCallback,
@@ -455,7 +515,7 @@
             if (heights[0] === 0) {
                 previouslyDraggedOver = previouslyDraggedOver.slice(1);
                 hoverLeaveElementTweens = tweened(heights.slice(1), {
-                    duration: 300,
+                    duration: ANIMATION_MS,
                     easing: cubicOut,
                 });
             }
@@ -483,7 +543,9 @@
                 });
                 let validTargets = $dropTargets.filter(
                     (target) =>
-                        $dragTarget.key === target.key && target.capacity > 0
+                        !target.disabled &&
+                        $dragTarget.key === target.key &&
+                        target.capacity > 0
                 );
 
                 let overlapping:
@@ -492,7 +554,8 @@
                           overlap: { overlapX: number; overlapY: number };
                       }
                     | undefined;
-                // Can't call reduce on an empty array, so check that we have something in it before doing the overlap check
+                /* Can't call reduce (without an initial value) on an empty array, so check that we have something 
+                in it before doing the overlap check */
                 if (validTargets.length === 0) {
                     overlapping = undefined;
                 } else {
@@ -545,6 +608,8 @@
 
     onMount(() => {
         let bounding = dropZone.getBoundingClientRect();
+        cachedDisabled = disabled;
+        cachedCapacity = capacity - items.length;
         cachedDropZoneRect = {
             x: bounding.left,
             y: bounding.top,
@@ -556,8 +621,9 @@
             {
                 id,
                 key,
-                capacity: capacity - cachedItems.length,
+                capacity: cachedCapacity,
                 rect: cachedDropZoneRect,
+                disabled: cachedDisabled,
                 dropElement: dropZone,
                 dropCallback,
                 hoverCallback,
@@ -572,7 +638,7 @@
     });
 </script>
 
-<svelte:body on:mousemove="{moveDraggable}" on:mouseup="{endDrag}" />
+<svelte:window on:mousemove="{moveDraggable}" on:mouseup="{endDrag}" on:mouseleave="{endDrag}"/>
 
 <div
     bind:this="{dropZone}"

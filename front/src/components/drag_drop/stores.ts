@@ -6,7 +6,17 @@ export type HoverResult = { index: number, item: Item, element: HTMLDivElement, 
 export type DropCallback = (dragTarget: HoverResult | undefined) => void;
 export type HoverCallback = () => HoverResult | undefined;
 export type Rect = { x: number, y: number, width: number, height: number };
-export type DropTarget = { id: number, key?: string, capacity: number, rect: Rect, dropElement: HTMLDivElement, dropCallback: DropCallback, hoverCallback: HoverCallback, dragLeave: () => void };
+export type DropTarget = {
+    id: number,
+    key?: string,
+    capacity: number,
+    disabled: boolean,
+    rect: Rect,
+    dropElement: HTMLDivElement,
+    dropCallback: DropCallback,
+    hoverCallback: HoverCallback,
+    dragLeave: () => void
+};
 export type DragTarget = { key?: string, item: Item, controllingDropZoneId: number, sourceRect: Rect, dragElement: HTMLDivElement, cachedRect: Rect };
 
 export const dropTargets: Writable<Array<DropTarget>> = writable([]);

@@ -4,6 +4,7 @@
     import DragList from '../drag_drop/DragList.svelte';
     export let columnData: Array<CardData> = [];
     export let columnTitle: string;
+    export let disabled: boolean = false;
 </script>
 
 <section
@@ -13,7 +14,12 @@
     {#if columnTitle}
         <h2>{columnTitle}</h2>
     {/if}
-    <DragList items="{columnData}" on:itemdroppedin on:itemdraggedout>
+    <DragList
+        items="{columnData}"
+        on:itemdroppedin
+        on:itemdraggedout
+        {disabled}
+    >
         <div
             slot="listItem"
             let:data="{{ item, handleMouseDown, handleMouseUp, handleMouseMove }}"
