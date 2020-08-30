@@ -1,0 +1,591 @@
+<style>
+    .dropContainer {
+        overflow-y: scroll;
+        height: 100%;
+        width: 100%;
+        overscroll-behavior: contain;
+    }
+</style>
+
+<script lang="ts">
+    import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+    import { tweened } from 'svelte/motion';
+    import { cubicOut } from 'svelte/easing';
+    import {
+        computeMidpoint,
+        makeDraggableElement,
+        overlap,
+        percentOverlap,
+        stripPadding,
+    } from './utilities';
+    import { dragging, dropTargets, dragTarget, dropTargetId } from './stores';
+
+    import type { Writable } from 'svelte/store';
+    import type {
+        Item,
+        Rect,
+        DropTarget,
+        DropCallback,
+        HoverCallback,
+        HoverResult,
+    } from './stores';
+
+    const DRAG_THRESHOLD = 25;
+
+    export let items: Array<Item>;
+    export let key: string | undefined = undefined;
+    export let capacity = Number.POSITIVE_INFINITY;
+    export const id = dropTargetId.next();
+
+    let cachedItems: Array<Item> = [];
+    let cachedRects: Array<Rect | undefined> = [];
+    let wrappingElements: { [id: string]: HTMLDivElement } = {};
+    let dropZone: HTMLDivElement;
+    let width: number = 0;
+    let height: number = 0;
+    let cachedDropZoneRect: Rect;
+    let cachedCapacity = capacity;
+    let mounted = false;
+    let potentiallyDraggedItem: Item | undefined = undefined;
+    let currentlyDraggingOver: HoverResult = undefined;
+    let previouslyDraggedOver: HoverResult[] = [];
+    let cachedDisplay: string | undefined;
+    let draggableDragStart: [number, number] | undefined = undefined;
+    let handleDelayedEvent: (() => void) | undefined;
+    // Tweened isn't exported, so use Writable since it is _mostly_ correct
+    let dragTween: Writable<[number, number]> | undefined = undefined;
+    let sourceElementTween: Writable<number> | undefined = undefined;
+    let hoverEnterElementTween: Writable<number> | undefined = undefined;
+    let hoverLeaveElementTweens: Writable<number[]> | undefined = undefined;
+    let currentDropTarget:
+        | { dropTarget: DropTarget; hoverResult: HoverResult | undefined }
+        | undefined = undefined;
+    const dispatch = createEventDispatcher();
+
+    const moveDraggable = (event: MouseEvent) => {
+        if (
+            $dragTarget?.controllingDropZoneId === id &&
+            ($dragging === 'picking-up' || $dragging === 'dragging')
+        ) {
+            event.preventDefault();
+            let offsetX = event.clientX - draggableDragStart[0];
+            let offsetY = event.clientY - draggableDragStart[1];
+            $dragTween = [offsetX, offsetY];
+        }
+    };
+
+    const cleanupAfterDrag = () => {
+        $dragging = 'none';
+        document.body.removeChild($dragTarget.dragElement);
+        let containingElement = wrappingElements[$dragTarget.item.id];
+        containingElement.style.height = '';
+        (containingElement
+            .children[0] as HTMLElement).style.display = cachedDisplay;
+        cachedRects = [];
+        draggableDragStart = undefined;
+        cachedDisplay = undefined;
+        $dragTarget = undefined;
+        currentDropTarget = undefined;
+    };
+
+    const endDrag = async (event: MouseEvent) => {
+        if (
+            $dragTarget?.controllingDropZoneId === id &&
+            ($dragging === 'picking-up' || $dragging === 'dragging')
+        ) {
+            event.preventDefault();
+            if (!!currentDropTarget) {
+                $dragging = 'dropping';
+                const rect = currentDropTarget.hoverResult
+                    ? currentDropTarget.hoverResult.element.getBoundingClientRect()
+                    : currentDropTarget.dropTarget.rect;
+                const position: [number, number] = [
+                    rect.x - $dragTarget.sourceRect.x,
+                    rect.y - $dragTarget.sourceRect.y,
+                ];
+                if (!!currentlyDraggingOver) {
+                    startDragOff();
+                }
+                await dragTween.set(position);
+                currentDropTarget.dropTarget.dropCallback(
+                    currentDropTarget.hoverResult
+                );
+                // We only send drop events when reordering a list, since the element never really left
+                if (currentDropTarget.dropTarget.id !== id) {
+                    dispatch('itemdraggedout', {
+                        item: $dragTarget.item,
+                        listSnapshot: [
+                            ...cachedItems.filter(
+                                (cachedItem) =>
+                                    cachedItem.id !== $dragTarget.item.id
+                            ),
+                        ],
+                        destinationDropZone: currentDropTarget.dropTarget.id,
+                    });
+                }
+                cleanupAfterDrag();
+            } else {
+                $dragging = 'returning';
+                // Tweened .set returns a promise that resolves, but our types don't show that
+                sourceElementTween.set($dragTarget.sourceRect.height);
+                if (!!currentlyDraggingOver) {
+                    startDragOff();
+                }
+                await dragTween.set([0, 0]);
+                cleanupAfterDrag();
+            }
+        }
+    };
+
+    const handleDraggableMouseDown = (
+        event: MouseEvent,
+        item: Item,
+        delayedEvent?: (event: MouseEvent) => void
+    ) => {
+        if (event.button === 0) {
+            draggableDragStart = [event.clientX, event.clientY];
+            potentiallyDraggedItem = { ...item };
+            if (!!delayedEvent) {
+                handleDelayedEvent = () => {
+                    delayedEvent(event);
+                };
+            }
+        } else if (!!delayedEvent) {
+            delayedEvent(event);
+        }
+    };
+
+    const handleDraggableMouseUp = () => {
+        if ($dragging === 'none') {
+            if (handleDelayedEvent) {
+                handleDelayedEvent();
+            }
+            draggableDragStart = undefined;
+            potentiallyDraggedItem = undefined;
+            handleDelayedEvent = undefined;
+        }
+    };
+
+    const handleDraggableMouseMove = async (event: MouseEvent) => {
+        if (!!draggableDragStart && $dragging === 'none') {
+            let dx = draggableDragStart[0] - event.clientX;
+            let dy = draggableDragStart[1] - event.clientY;
+            if (dx * dx + dy * dy > DRAG_THRESHOLD) {
+                $dragging = 'picking-up';
+                const containingElement =
+                    wrappingElements[potentiallyDraggedItem.id];
+                const cloned = makeDraggableElement(containingElement);
+                document.body.append(cloned);
+                $dragTarget = {
+                    item: potentiallyDraggedItem,
+                    controllingDropZoneId: id,
+                    dragElement: cloned,
+                    sourceRect: containingElement.getBoundingClientRect(),
+                    cachedRect: cloned.getBoundingClientRect(),
+                };
+                dragTween = tweened([0, 0], {
+                    duration: 300,
+                    easing: cubicOut,
+                });
+                potentiallyDraggedItem = undefined;
+                handleDelayedEvent = undefined;
+                currentlyDraggingOver = undefined;
+                currentDropTarget = undefined;
+                previouslyDraggedOver = [];
+                sourceElementTween = tweened($dragTarget.sourceRect.height, {
+                    duration: 300,
+                    easing: cubicOut,
+                });
+                containingElement.style.height = `${$dragTarget.sourceRect.height}px`;
+                const child = containingElement.children[0] as HTMLElement;
+                cachedDisplay = child.style.display;
+                child.style.display = 'none';
+                await sourceElementTween.set(0);
+                $dragging = 'dragging';
+                cachedRects = cachedRects.slice(
+                    0,
+                    cachedItems.findIndex(
+                        (item) => item.id === $dragTarget.item.id
+                    )
+                );
+            }
+        }
+    };
+    const dropCallback: DropCallback = (drop: HoverResult | undefined) => {
+        const dropIndex = drop?.index ?? 0;
+        // Always filter because it isn't that expensive and it avoids special casing dropping back in the same list (as much as possible)
+        const firstSection = cachedItems
+            .slice(0, dropIndex + 1)
+            .filter((cachedItem) => cachedItem.id !== $dragTarget.item.id);
+        const secondSection = cachedItems
+            .slice(dropIndex + 1)
+            .filter((cachedItem) => cachedItem.id !== $dragTarget.item.id);
+        const listSnapshot = [
+            ...firstSection,
+            $dragTarget.item,
+            ...secondSection,
+        ];
+        const finalIndex = listSnapshot.findIndex(
+            (snapshotItem) => snapshotItem.id === $dragTarget.item.id
+        );
+        dispatch('itemdroppedin', {
+            item: $dragTarget.item,
+            index: finalIndex,
+            insertedAfter:
+                finalIndex > 0 ? cachedItems[finalIndex - 1] : undefined,
+            listSnapshot,
+            sourceDropZone: $dragTarget.controllingDropZoneId,
+        });
+    };
+
+    const startDragOver = (hoverResult: HoverResult) => {
+        const draggedOffIndex = previouslyDraggedOver.findIndex(
+            (previous) =>
+                previous.item.id === hoverResult.item.id &&
+                previous.placement === hoverResult.placement
+        );
+        let startingHeight = 0;
+        if (draggedOffIndex > -1) {
+            previouslyDraggedOver = previouslyDraggedOver.filter(
+                (_, index) => index === draggedOffIndex
+            );
+            const heights = $hoverLeaveElementTweens;
+            startingHeight = heights[draggedOffIndex];
+            hoverLeaveElementTweens = tweened(
+                heights.filter((_, index) => index === draggedOffIndex),
+                {
+                    duration: 300,
+                    easing: cubicOut,
+                }
+            );
+        }
+
+        currentlyDraggingOver = hoverResult;
+        hoverEnterElementTween = tweened(startingHeight, {
+            duration: 300,
+            easing: cubicOut,
+        });
+        hoverEnterElementTween.set($dragTarget.cachedRect.height);
+    };
+
+    const startDragOff = () => {
+        previouslyDraggedOver = [
+            ...previouslyDraggedOver,
+            currentlyDraggingOver,
+        ];
+        let collapseTween = tweened($hoverEnterElementTween, {
+            duration: 300,
+            easing: cubicOut,
+        });
+        collapseTween.set(0);
+        const previousTweenValues = !!hoverLeaveElementTweens
+            ? $hoverLeaveElementTweens
+            : [];
+        hoverLeaveElementTweens = tweened(
+            [...previousTweenValues, $hoverEnterElementTween],
+            {
+                duration: 300,
+                easing: cubicOut,
+            }
+        );
+        hoverLeaveElementTweens.set(
+            new Array(previousTweenValues.length + 1).fill(0)
+        );
+        hoverEnterElementTween = undefined;
+        currentlyDraggingOver = undefined;
+    };
+
+    const hoverCallback: HoverCallback = () => {
+        let overlapped = false;
+        const overlapping = [];
+        for (let index = 0; index < cachedItems.length; index++) {
+            const cachedItem = cachedItems[index];
+            const element = wrappingElements[cachedItem.id];
+            if (
+                index >= cachedRects.length ||
+                cachedRects[index] === undefined
+            ) {
+                cachedRects[index] = element.getBoundingClientRect();
+            }
+            let overlaps = overlap($dragTarget.cachedRect, cachedRects[index]!);
+            let rectWithoutPadding = stripPadding(element, cachedRects[index]!);
+            let placement =
+                computeMidpoint(rectWithoutPadding).y >
+                computeMidpoint($dragTarget.cachedRect).y
+                    ? 'before'
+                    : 'after';
+            if (overlaps) {
+                overlapping.push({
+                    index,
+                    item: cachedItem,
+                    element,
+                    placement,
+                });
+                overlapped = true;
+            } else if (overlapped) {
+                break;
+            }
+        }
+        if (overlapping.length === 0) {
+            if (!!currentlyDraggingOver) {
+                startDragOff();
+            }
+            return undefined;
+        }
+        const midpoint = Math.trunc(
+            (overlapping[0].index + overlapping[overlapping.length - 1].index) /
+                2
+        );
+        let overlappedItem = overlapping.find((o) => o.index === midpoint);
+        /* Only use 'before' placement at the start of the list. Since we are changing padding,
+         we want to reduce the chance of weird interactions with wrapping.
+         */
+        if (overlappedItem.placement === 'before' && overlappedItem.index > 0) {
+            const indexBefore = overlappedItem.index - 1;
+            const itemBefore = cachedItems[indexBefore];
+            overlappedItem = {
+                index: indexBefore,
+                item: itemBefore,
+                element: wrappingElements[itemBefore.id],
+                placement: 'after',
+            };
+        }
+        if (!currentlyDraggingOver) {
+            startDragOver(overlappedItem);
+        } else if (
+            currentlyDraggingOver.item.id !== overlappedItem.item.id ||
+            currentlyDraggingOver.placement !== overlappedItem.placement
+        ) {
+            startDragOff();
+            startDragOver(overlappedItem);
+        }
+        return overlappedItem;
+    };
+
+    const dragLeave = () => {
+        if (!!currentlyDraggingOver) {
+            console.log('drag off (leave)', currentlyDraggingOver);
+            startDragOff();
+        }
+    };
+
+    $: {
+        if (mounted) {
+            let updatedRect = false;
+            let updatedCapacity = false;
+            if (
+                cachedDropZoneRect.width !== width ||
+                cachedDropZoneRect.height !== height
+            ) {
+                let bounding = dropZone.getBoundingClientRect();
+                cachedDropZoneRect = {
+                    x: bounding.left,
+                    y: bounding.top,
+                    width,
+                    height,
+                };
+                updatedRect = true;
+            }
+
+            if (capacity - cachedItems.length !== cachedCapacity) {
+                cachedCapacity = Math.max(0, capacity - cachedItems.length);
+                updatedCapacity = true;
+            }
+
+            if (updatedRect || updatedCapacity) {
+                $dropTargets = [
+                    ...$dropTargets.filter((dt) => dt.id !== id),
+                    {
+                        id,
+                        key,
+                        capacity: cachedCapacity,
+                        rect: cachedDropZoneRect,
+                        dropElement: dropZone,
+                        dropCallback,
+                        hoverCallback,
+                        dragLeave,
+                    },
+                ];
+            }
+        }
+    }
+
+    $: {
+        if ($dragging === 'none') {
+            cachedItems = [...items];
+        }
+    }
+
+    $: {
+        if (
+            $dragTarget?.controllingDropZoneId === id &&
+            ($dragging === 'picking-up' || $dragging === 'returning')
+        ) {
+            wrappingElements[
+                $dragTarget.item.id
+            ].style.height = `${$sourceElementTween}px`;
+        }
+    }
+
+    $: {
+        if (!!currentlyDraggingOver && !!hoverEnterElementTween) {
+            if (currentlyDraggingOver.placement == 'before') {
+                currentlyDraggingOver.element.style.paddingTop = `${$hoverEnterElementTween}px`;
+            } else {
+                currentlyDraggingOver.element.style.paddingBottom = `${$hoverEnterElementTween}px`;
+            }
+            // TODO: offset
+            cachedRects = cachedRects.slice(0, currentlyDraggingOver.index);
+        }
+    }
+
+    $: {
+        if (previouslyDraggedOver.length > 0 && !!hoverLeaveElementTweens) {
+            const heights = $hoverLeaveElementTweens;
+            previouslyDraggedOver = previouslyDraggedOver.map(
+                (target, index) => {
+                    if (target.placement === 'before') {
+                        target.element.style.paddingTop = `${heights[index]}px`;
+                    } else {
+                        target.element.style.paddingBottom = `${heights[index]}px`;
+                    }
+                    return target;
+                }
+            );
+            if (heights[0] === 0) {
+                previouslyDraggedOver = previouslyDraggedOver.slice(1);
+                hoverLeaveElementTweens = tweened(heights.slice(1), {
+                    duration: 300,
+                    easing: cubicOut,
+                });
+            }
+            // TODO: offsets
+            cachedRects = [];
+        }
+    }
+
+    $: {
+        if ($dragTarget?.controllingDropZoneId === id) {
+            if (
+                $dragging === 'picking-up' ||
+                $dragging === 'returning' ||
+                $dragging === 'dropping'
+            ) {
+                dragTarget.update((target) => {
+                    target.dragElement.style.transform = `translate3d(${$dragTween[0]}px, ${$dragTween[1]}px, 0)`;
+                    return target;
+                });
+            } else if ($dragging === 'dragging') {
+                dragTarget.update((target) => {
+                    target.dragElement.style.transform = `translate3d(${$dragTween[0]}px, ${$dragTween[1]}px, 0)`;
+                    target.cachedRect = target.dragElement.getBoundingClientRect();
+                    return target;
+                });
+                let validTargets = $dropTargets.filter(
+                    (target) =>
+                        $dragTarget.key === target.key && target.capacity > 0
+                );
+
+                let overlapping:
+                    | {
+                          target: DropTarget;
+                          overlap: { overlapX: number; overlapY: number };
+                      }
+                    | undefined;
+                // Can't call reduce on an empty array, so check that we have something in it before doing the overlap check
+                if (validTargets.length === 0) {
+                    overlapping = undefined;
+                } else {
+                    overlapping = validTargets
+                        .map((target) => {
+                            return {
+                                target,
+                                overlap: percentOverlap(
+                                    $dragTarget.cachedRect,
+                                    target.rect
+                                ),
+                            };
+                        })
+                        .reduce((acc, next) => {
+                            if (
+                                next.overlap.overlapX > acc.overlap.overlapX ||
+                                next.overlap.overlapY < acc.overlap.overlapY
+                            ) {
+                                return next;
+                            }
+                            return acc;
+                        });
+                }
+
+                if (
+                    overlapping &&
+                    overlapping.overlap.overlapX > 0 &&
+                    overlapping.overlap.overlapY > 0
+                ) {
+                    if (
+                        !!currentDropTarget &&
+                        currentDropTarget.dropTarget.id !==
+                            overlapping.target.id
+                    ) {
+                        currentDropTarget.dropTarget.dragLeave();
+                        currentDropTarget = undefined;
+                    }
+                    const hoverResult = overlapping.target.hoverCallback();
+                    currentDropTarget = {
+                        dropTarget: overlapping.target,
+                        hoverResult,
+                    };
+                } else if (!!currentDropTarget) {
+                    currentDropTarget.dropTarget.dragLeave();
+                    currentDropTarget = undefined;
+                }
+            }
+        }
+    }
+
+    onMount(() => {
+        let bounding = dropZone.getBoundingClientRect();
+        cachedDropZoneRect = {
+            x: bounding.left,
+            y: bounding.top,
+            width,
+            height,
+        };
+        $dropTargets = [
+            ...$dropTargets,
+            {
+                id,
+                key,
+                capacity: capacity - cachedItems.length,
+                rect: cachedDropZoneRect,
+                dropElement: dropZone,
+                dropCallback,
+                hoverCallback,
+                dragLeave,
+            },
+        ];
+        mounted = true;
+    });
+
+    onDestroy(() => {
+        $dropTargets = $dropTargets.filter((dt) => dt.id !== id);
+    });
+</script>
+
+<svelte:body on:mousemove="{moveDraggable}" on:mouseup="{endDrag}" />
+
+<div
+    bind:this="{dropZone}"
+    bind:clientWidth="{width}"
+    bind:clientHeight="{height}"
+    class="dropContainer"
+>
+    {#each cachedItems as item (item.id)}
+        <div bind:this="{wrappingElements[item.id]}">
+            <slot
+                name="listItem"
+                data="{{ item, handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove }}"
+            />
+        </div>
+    {/each}
+</div>

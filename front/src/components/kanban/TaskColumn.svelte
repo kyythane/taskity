@@ -1,18 +1,9 @@
 <script lang="ts">
-    import { dndzone } from 'svelte-dnd-action';
-    import { flip } from 'svelte/animate';
-    import TaskCard from './TaskCard.svelte';
     import type { CardData } from './CardData';
-    const flipDurationMs = 300;
-
+    import TaskCard from './TaskCard.svelte';
+    import DragList from '../drag_drop/DragList.svelte';
     export let columnData: Array<CardData> = [];
     export let columnTitle: string;
-    function handleDndConsider(e) {
-        columnData = e.detail.items;
-    }
-    function handleDndFinalize(e) {
-        columnData = e.detail.items;
-    }
 </script>
 
 <section
@@ -22,16 +13,17 @@
     {#if columnTitle}
         <h2>{columnTitle}</h2>
     {/if}
-    <div
-        use:dndzone="{{ items: columnData, flipDurationMs }}"
-        on:consider="{handleDndConsider}"
-        on:finalize="{handleDndFinalize}"
-        class="overflow-y-scroll h-full w-full overscroll-contain"
-    >
-        {#each columnData as cardData (cardData.id)}
-            <div animate:flip="{{ duration: flipDurationMs }}">
-                <TaskCard {cardData} />
-            </div>
-        {/each}
-    </div>
+    <DragList items="{columnData}" on:itemdroppedin on:itemdraggedout>
+        <div
+            slot="listItem"
+            let:data="{{ item, handleMouseDown, handleMouseUp, handleMouseMove }}"
+        >
+            <TaskCard
+                cardData="{item}"
+                on:mousedown="{(event) => handleMouseDown(event, item)}"
+                on:mouseup="{handleMouseUp}"
+                on:mousemove="{handleMouseMove}"
+            />
+        </div>
+    </DragList>
 </section>

@@ -29,8 +29,12 @@
     }
 </script>
 
-<svelte:options immutable />
+<svelte:options immutable="{true}" />
+
 <div
+    on:mousedown
+    on:mouseup
+    on:mousemove
     on:mouseover="{onMouseIn}"
     on:mouseleave="{onMouseOut}"
     class="rounded-md h-32 w-64 bg-white p-4 mt-2"
