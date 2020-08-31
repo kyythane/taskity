@@ -155,6 +155,9 @@
                     startDragOff();
                 }
                 await dragTween.set([0, 0]);
+                dispatch('dragcancelled', {
+                    item: $dragTarget.item,
+                });
                 cleanupAfterDrag();
             }
         }
@@ -372,13 +375,6 @@
                 });
                 dragScrollTarget = dropZone.scrollTop - 100;
                 dragScrollTween.set(dragScrollTarget);
-                console.log(
-                    'scroll up',
-                    midpoint.y,
-                    threshold + cachedDropZoneRect.y
-                );
-            } else {
-                console.log('keep scrolling up');
             }
         } else if (
             midpoint.y >=
@@ -390,18 +386,10 @@
                 });
                 dragScrollTarget = dropZone.scrollTop + 100;
                 dragScrollTween.set(dragScrollTarget);
-                console.log(
-                    'scroll down',
-                    midpoint.y,
-                    cachedDropZoneRect.height - threshold + cachedDropZoneRect.y
-                );
-            } else {
-                console.log('keep scrolling down');
             }
         } else {
             dragScrollTween = undefined;
             dragScrollTarget = dropZone.scrollTop;
-            console.log('scroll stop', midpoint.y);
         }
         if (!!dragScrollTween && !!currentlyDraggingOver) {
             startDragOff();
@@ -491,7 +479,10 @@
     };
 
     const enterDropZone = () => {
-        console.log('enter');
+        dispatch('dropzoneenter', {
+            item: $dragTarget.item,
+            rect: $dragTarget.cachedRect,
+        });
     };
 
     const leaveDropZone = () => {
@@ -499,7 +490,10 @@
             startDragOff();
         }
         dragScrollTween = undefined;
-        console.log('leave');
+        dispatch('dropzoneleave', {
+            item: $dragTarget.item,
+            rect: $dragTarget.cachedRect,
+        });
     };
 
     $: {
