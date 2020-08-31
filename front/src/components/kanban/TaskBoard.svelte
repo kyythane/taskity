@@ -1,24 +1,25 @@
 <script lang="ts">
     import TaskColumn from './TaskColumn.svelte';
     import { selectedTasks } from './stores';
-    let todo = [...Array(1000).keys()].map((i) => {
+    const num = 500;
+    let todo = [...Array(num).keys()].map((i) => {
         return {
             id: `${i}`,
             title: `Todo, ID: ${i}`,
             labels: [],
         };
     });
-    let inProgress = [...Array(1000).keys()].map((i) => {
+    let inProgress = [...Array(num).keys()].map((i) => {
         return {
-            id: `${1000 + i}`,
-            title: `In Progress, ID: ${1000 + i}`,
+            id: `${num + i}`,
+            title: `In Progress, ID: ${num + i}`,
             labels: [],
         };
     });
-    let done = [...Array(1000).keys()].map((i) => {
+    let done = [...Array(num).keys()].map((i) => {
         return {
-            id: `${2000 + i}`,
-            title: `Done, ID: ${2000 + i}`,
+            id: `${2 * num + i}`,
+            title: `Done, ID: ${2 * num + i}`,
             labels: [],
         };
     });

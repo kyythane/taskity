@@ -282,13 +282,19 @@
                 (_, index) => index !== draggedOffIndex
             );
             const heights = $hoverLeaveElementTweens;
-            startingHeight = heights[draggedOffIndex];
-            hoverLeaveElementTweens = tweened(
-                heights.filter((_, index) => index !== draggedOffIndex),
-                {
-                    duration: ANIMATION_MS,
-                    easing: cubicOut,
-                }
+            startingHeight = Math.min(
+                heights[draggedOffIndex],
+                $dragTarget.cachedRect.height
+            );
+            const filteredHeights = heights.filter(
+                (_, index) => index !== draggedOffIndex
+            );
+            hoverLeaveElementTweens = tweened(filteredHeights, {
+                duration: ANIMATION_MS,
+                easing: cubicOut,
+            });
+            hoverLeaveElementTweens.set(
+                new Array(filteredHeights.length).fill(0)
             );
         }
 
@@ -322,7 +328,13 @@
             currentlyDraggingOver,
         ];
         hoverLeaveElementTweens = tweened(
-            [...previousTweenValues, $hoverEnterElementTween],
+            [
+                ...previousTweenValues,
+                Math.min(
+                    $hoverEnterElementTween,
+                    $dragTarget.cachedRect.height
+                ),
+            ],
             {
                 duration: ANIMATION_MS,
                 easing: cubicOut,
@@ -512,12 +524,22 @@
                     return target;
                 }
             );
-            if (heights[0] === 0) {
-                previouslyDraggedOver = previouslyDraggedOver.slice(1);
-                hoverLeaveElementTweens = tweened(heights.slice(1), {
+            let zeros = 0;
+            for (let i = 0; i < heights.length; i++) {
+                if (heights[i] > 0) {
+                    break;
+                }
+                ++zeros;
+            }
+            if (zeros > 0) {
+                previouslyDraggedOver = previouslyDraggedOver.slice(zeros);
+                hoverLeaveElementTweens = tweened(heights.slice(zeros), {
                     duration: ANIMATION_MS,
                     easing: cubicOut,
                 });
+                hoverLeaveElementTweens.set(
+                    new Array(previouslyDraggedOver.length).fill(0)
+                );
             }
             // TODO: offsets
             cachedRects = [];
@@ -638,7 +660,11 @@
     });
 </script>
 
-<svelte:window on:mousemove="{moveDraggable}" on:mouseup="{endDrag}" on:mouseleave="{endDrag}"/>
+<svelte:window
+    on:mousemove="{moveDraggable}"
+    on:mouseup="{endDrag}"
+    on:mouseleave="{endDrag}"
+/>
 
 <div
     bind:this="{dropZone}"
