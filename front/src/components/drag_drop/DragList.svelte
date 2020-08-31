@@ -33,6 +33,7 @@
 
     const DRAG_THRESHOLD = 25;
     const ANIMATION_MS = 200;
+    const SCROLL_ON_DRAG_THRESHOLD = 0.07;
 
     export let items: Array<Item>;
     export let key: string | undefined = undefined;
@@ -61,6 +62,8 @@
     let sourceElementTween: Writable<number> | undefined = undefined;
     let hoverEnterElementTween: Writable<number> | undefined = undefined;
     let hoverLeaveElementTweens: Writable<number[]> | undefined = undefined;
+    let dragScrollTween: Writable<number> | undefined = undefined;
+    let dragScrollTarget: number;
     let currentDropTarget:
         | { dropTarget: DropTarget; hoverResult: HoverResult | undefined }
         | undefined = undefined;
@@ -90,6 +93,7 @@
         cachedDisplay = undefined;
         $dragTarget = undefined;
         currentDropTarget = undefined;
+        dragScrollTween = undefined;
     };
 
     const endDrag = async (event: MouseEvent) => {
@@ -271,6 +275,9 @@
     };
 
     const startDragOver = (hoverResult: HoverResult) => {
+        if (!!dragScrollTween) {
+            return;
+        }
         const draggedOffIndex = previouslyDraggedOver.findIndex(
             (previous) =>
                 previous.item.id === hoverResult.item.id &&
@@ -347,6 +354,34 @@
         currentlyDraggingOver = undefined;
     };
 
+    const checkScroll = () => {
+        if (
+            $dragTarget.cachedRect.y <=
+            SCROLL_ON_DRAG_THRESHOLD * cachedDropZoneRect.height
+        ) {
+            dragScrollTween = tweened(dropZone.scrollTop, {
+                duration: ANIMATION_MS,
+            });
+            dragScrollTarget = dropZone.scrollTop - 100;
+            dragScrollTween.set(dragScrollTarget);
+        } else if (
+            $dragTarget.cachedRect.y >=
+            (1 - SCROLL_ON_DRAG_THRESHOLD) * cachedDropZoneRect.height
+        ) {
+            dragScrollTween = tweened(dropZone.scrollTop, {
+                duration: ANIMATION_MS,
+            });
+            dragScrollTarget = dropZone.scrollTop + 100;
+            dragScrollTween.set(dragScrollTarget);
+        } else {
+            dragScrollTween = undefined;
+            dragScrollTarget = dropZone.scrollTop;
+        }
+        if (!!dragScrollTween && !!currentlyDraggingOver) {
+            startDragOff();
+        }
+    };
+
     const hoverCallback: HoverCallback = () => {
         if (cachedItems.length === 0) {
             if (!!currentlyDraggingOver) {
@@ -354,6 +389,7 @@
             }
             return undefined;
         }
+        checkScroll();
         let overlapped = false;
         const overlapping = [];
         for (let index = 0; index < cachedItems.length; index++) {
@@ -547,22 +583,26 @@
     }
 
     $: {
+        if ($dragging === 'dragging' && !!dragScrollTween) {
+            dropZone.scrollTop = $dragScrollTween;
+            cachedRects = [];
+            if (dropZone.scrollTop === dragScrollTarget) {
+                checkScroll();
+            }
+        }
+    }
+
+    $: {
         if ($dragTarget?.controllingDropZoneId === id) {
-            if (
-                $dragging === 'picking-up' ||
-                $dragging === 'returning' ||
-                $dragging === 'dropping'
-            ) {
-                dragTarget.update((target) => {
-                    target.dragElement.style.transform = `translate3d(${$dragTween[0]}px, ${$dragTween[1]}px, 0)`;
-                    return target;
-                });
-            } else if ($dragging === 'dragging') {
+            // I like guards
+            if ($dragging !== 'none') {
                 dragTarget.update((target) => {
                     target.dragElement.style.transform = `translate3d(${$dragTween[0]}px, ${$dragTween[1]}px, 0)`;
                     target.cachedRect = target.dragElement.getBoundingClientRect();
                     return target;
                 });
+            }
+            if ($dragging === 'dragging') {
                 let validTargets = $dropTargets.filter(
                     (target) =>
                         !target.disabled &&
@@ -665,7 +705,11 @@
     on:mouseup="{endDrag}"
     on:mouseleave="{endDrag}"
 />
-
+<!--
+<div>
+    <slot name="standin" data={}></slot>
+</div>
+-->
 <div
     bind:this="{dropZone}"
     bind:clientWidth="{width}"

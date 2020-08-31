@@ -40,7 +40,7 @@ export function removePaddingFromRect(element: HTMLElement, rect: Rect) {
     return { x: rect.x + left, y: rect.y + top, width: rect.width - (left + right), height: rect.height - (top + bottom) };
 }
 
-export function pixelStringToNumber(pixelString: string) {
+function pixelStringToNumber(pixelString: string) {
     return (pixelString && pixelString.length > 0) ? Number.parseFloat(pixelString.substring(0, pixelString.length - 2)) : 0;
 }
 
