@@ -15,7 +15,8 @@ export type DropTarget = {
     dropElement: HTMLDivElement,
     dropCallback: DropCallback,
     hoverCallback: HoverCallback,
-    dragLeave: () => void
+    enterDropZone: () => void,
+    leaveDropZone: () => void,
 };
 export type DragTarget = { key?: string, item: Item, controllingDropZoneId: number, sourceRect: Rect, dragElement: HTMLDivElement, cachedRect: Rect };
 

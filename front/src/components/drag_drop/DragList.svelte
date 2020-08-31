@@ -33,7 +33,9 @@
 
     const DRAG_THRESHOLD = 25;
     const ANIMATION_MS = 200;
-    const SCROLL_ON_DRAG_THRESHOLD = 0.07;
+    const SCROLL_ON_DRAG_THRESHOLD_PERCENT = 0.1;
+    const SCROLL_ON_DRAG_THRESHOLD_MIN_PIXELS = 50;
+    const SCROLL_ON_DRAG_THRESHOLD_MAX_PIXELS = 150;
 
     export let items: Array<Item>;
     export let key: string | undefined = undefined;
@@ -355,27 +357,51 @@
     };
 
     const checkScroll = () => {
-        if (
-            $dragTarget.cachedRect.y <=
-            SCROLL_ON_DRAG_THRESHOLD * cachedDropZoneRect.height
-        ) {
-            dragScrollTween = tweened(dropZone.scrollTop, {
-                duration: ANIMATION_MS,
-            });
-            dragScrollTarget = dropZone.scrollTop - 100;
-            dragScrollTween.set(dragScrollTarget);
+        const midpoint = computeMidpoint($dragTarget.cachedRect);
+        let threshold = Math.min(
+            Math.max(
+                SCROLL_ON_DRAG_THRESHOLD_PERCENT * cachedDropZoneRect.height,
+                SCROLL_ON_DRAG_THRESHOLD_MIN_PIXELS
+            ),
+            SCROLL_ON_DRAG_THRESHOLD_MAX_PIXELS
+        );
+        if (midpoint.y <= threshold + cachedDropZoneRect.y) {
+            if (dragScrollTarget >= dropZone.scrollTop) {
+                dragScrollTween = tweened(dropZone.scrollTop, {
+                    duration: ANIMATION_MS,
+                });
+                dragScrollTarget = dropZone.scrollTop - 100;
+                dragScrollTween.set(dragScrollTarget);
+                console.log(
+                    'scroll up',
+                    midpoint.y,
+                    threshold + cachedDropZoneRect.y
+                );
+            } else {
+                console.log('keep scrolling up');
+            }
         } else if (
-            $dragTarget.cachedRect.y >=
-            (1 - SCROLL_ON_DRAG_THRESHOLD) * cachedDropZoneRect.height
+            midpoint.y >=
+            cachedDropZoneRect.height - threshold + cachedDropZoneRect.y
         ) {
-            dragScrollTween = tweened(dropZone.scrollTop, {
-                duration: ANIMATION_MS,
-            });
-            dragScrollTarget = dropZone.scrollTop + 100;
-            dragScrollTween.set(dragScrollTarget);
+            if (dragScrollTarget <= dropZone.scrollTop) {
+                dragScrollTween = tweened(dropZone.scrollTop, {
+                    duration: ANIMATION_MS,
+                });
+                dragScrollTarget = dropZone.scrollTop + 100;
+                dragScrollTween.set(dragScrollTarget);
+                console.log(
+                    'scroll down',
+                    midpoint.y,
+                    cachedDropZoneRect.height - threshold + cachedDropZoneRect.y
+                );
+            } else {
+                console.log('keep scrolling down');
+            }
         } else {
             dragScrollTween = undefined;
             dragScrollTarget = dropZone.scrollTop;
+            console.log('scroll stop', midpoint.y);
         }
         if (!!dragScrollTween && !!currentlyDraggingOver) {
             startDragOff();
@@ -464,10 +490,16 @@
         return overlappedItem;
     };
 
-    const dragLeave = () => {
+    const enterDropZone = () => {
+        console.log('enter');
+    };
+
+    const leaveDropZone = () => {
         if (!!currentlyDraggingOver) {
             startDragOff();
         }
+        dragScrollTween = undefined;
+        console.log('leave');
     };
 
     $: {
@@ -511,7 +543,8 @@
                         dropElement: dropZone,
                         dropCallback,
                         hoverCallback,
-                        dragLeave,
+                        enterDropZone,
+                        leaveDropZone,
                     },
                 ];
             }
@@ -652,8 +685,11 @@
                         currentDropTarget.dropTarget.id !==
                             overlapping.target.id
                     ) {
-                        currentDropTarget.dropTarget.dragLeave();
+                        currentDropTarget.dropTarget.leaveDropZone();
                         currentDropTarget = undefined;
+                    }
+                    if (!currentDropTarget) {
+                        overlapping.target.enterDropZone();
                     }
                     const hoverResult = overlapping.target.hoverCallback();
                     currentDropTarget = {
@@ -661,7 +697,7 @@
                         hoverResult,
                     };
                 } else if (!!currentDropTarget) {
-                    currentDropTarget.dropTarget.dragLeave();
+                    currentDropTarget.dropTarget.leaveDropZone();
                     currentDropTarget = undefined;
                 }
             }
@@ -689,7 +725,8 @@
                 dropElement: dropZone,
                 dropCallback,
                 hoverCallback,
-                dragLeave,
+                enterDropZone,
+                leaveDropZone,
             },
         ];
         mounted = true;
