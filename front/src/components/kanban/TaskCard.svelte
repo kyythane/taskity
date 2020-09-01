@@ -64,7 +64,7 @@
             </Tag>
         {/each}
     </div>
-    <DragHandle item="{cardData}">
+    <DragHandle itemId="{cardData.id}">
         <button>HANDLE</button>
     </DragHandle>
 </div>

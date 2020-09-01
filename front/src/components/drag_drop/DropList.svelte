@@ -56,7 +56,7 @@
     let currentWidth: number = 0;
     let currentHeight: number = 0;
     let mounted = false;
-    let potentiallyDraggedItem: Item | undefined = undefined;
+    let potentiallDraggedId: string | undefined = undefined;
     let currentlyDraggingOver: HoverResult = undefined;
     let previouslyDraggedOver: HoverResult[] = [];
     let draggableDragStart: [number, number] | undefined = undefined;
@@ -169,12 +169,16 @@
 
     const handleDraggableMouseDown = (
         event: MouseEvent,
-        item: Item,
+        id: string,
         delayedEvent?: (event: MouseEvent) => void
     ) => {
-        if (!cachedDisabled && event.button === 0) {
+        if (
+            !cachedDisabled &&
+            !!cachedItems.find((c) => c.id === id) &&
+            event.button === 0
+        ) {
             draggableDragStart = [event.clientX, event.clientY];
-            potentiallyDraggedItem = { ...item };
+            potentiallDraggedId = id;
             if (!!delayedEvent) {
                 handleDelayedEvent = () => {
                     delayedEvent(event);
@@ -191,7 +195,7 @@
                 handleDelayedEvent();
             }
             draggableDragStart = undefined;
-            potentiallyDraggedItem = undefined;
+            potentiallDraggedId = undefined;
             handleDelayedEvent = undefined;
         }
     };
@@ -202,12 +206,13 @@
             let dy = draggableDragStart[1] - event.clientY;
             if (dx * dx + dy * dy > DRAG_THRESHOLD) {
                 $dragging = 'picking-up';
-                const containingElement =
-                    wrappingElements[potentiallyDraggedItem.id];
+                const containingElement = wrappingElements[potentiallDraggedId];
                 const cloned = makeDraggableElement(containingElement);
                 document.body.append(cloned);
                 $dragTarget = {
-                    item: potentiallyDraggedItem,
+                    item: cachedItems.find(
+                        (c) => c.id === potentiallDraggedId
+                    )!,
                     controllingDropZoneId: id,
                     dragElement: cloned,
                     sourceRect: containingElement.getBoundingClientRect(),
@@ -217,7 +222,7 @@
                     duration: ANIMATION_MS,
                     easing: cubicOut,
                 });
-                potentiallyDraggedItem = undefined;
+                potentiallDraggedId = undefined;
                 handleDelayedEvent = undefined;
                 currentlyDraggingOver = undefined;
                 currentDropTarget = undefined;
@@ -625,8 +630,8 @@
         }
     }
 
-    const hasItem = (item) => {
-        return !!cachedItems.find((c) => c.id === item.id);
+    const hasItem = (itemId: string) => {
+        return !!cachedItems.find((c) => c.id === itemId);
     };
 
     const getEventHandlers = () => {

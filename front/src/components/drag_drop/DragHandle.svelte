@@ -1,19 +1,19 @@
 <script lang="ts">
-    import type { Item, DragEventHandlers, DropTarget } from './stores';
+    import type { DragEventHandlers, DropTarget } from './stores';
     import { dropTargets } from './stores';
 
-    export let item: Item;
+    export let itemId: string;
     let dropZone: DropTarget;
 
     $: {
-        dropZone = $dropTargets.find((target) => target.hasItem(item));
+        dropZone = $dropTargets.find((target) => target.hasItem(itemId));
     }
 </script>
 
 <div
     on:mousedown="{(event) => dropZone
             ?.getEventHandlers()
-            .handleMouseDown(event, item)}"
+            .handleMouseDown(event, itemId)}"
     on:mouseup="{dropZone?.getEventHandlers().handleMouseUp}"
     on:mousemove="{dropZone?.getEventHandlers().handleMouseMove}"
 >
