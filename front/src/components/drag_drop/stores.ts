@@ -1,9 +1,9 @@
 import { writable, Writable } from 'svelte/store';
 
-
-export type Item = { id: string };
+export type Id = number | string;
+export type Item = { id: Id };
 export type DragEventHandlers = {
-    handleMouseDown: (event: MouseEvent, itemId: string) => void;
+    handleMouseDown: (event: MouseEvent, itemId: Id) => void;
     handleMouseUp: (event: MouseEvent) => void;
     handleMouseMove: (event: MouseEvent) => void;
 };
@@ -22,7 +22,7 @@ export type DropTarget = {
     hoverCallback: HoverCallback,
     enterDropZone: () => void,
     leaveDropZone: () => void,
-    hasItem: (itemId: string) => boolean,
+    hasItem: (itemId: Id) => boolean,
     getEventHandlers: () => DragEventHandlers,
 };
 export type DragTarget = { key?: string, item: Item, controllingDropZoneId: number, sourceRect: Rect, dragElement: HTMLDivElement, cachedRect: Rect };

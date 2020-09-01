@@ -19,6 +19,7 @@
         on:itemdroppedin
         on:itemdraggedout
         {disabled}
+        enableResizeListeners
     >
         <div slot="listItem" let:data="{{ item, dragEventHandlers }}">
             <TaskCard cardData="{item}" />

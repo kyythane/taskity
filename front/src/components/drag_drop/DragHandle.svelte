@@ -1,8 +1,8 @@
 <script lang="ts">
-    import type { DragEventHandlers, DropTarget } from './stores';
+    import type { Id, DropTarget } from './stores';
     import { dropTargets } from './stores';
 
-    export let itemId: string;
+    export let itemId: Id;
     let dropZone: DropTarget;
 
     $: {

@@ -23,6 +23,7 @@
 
     import type { Writable } from 'svelte/store';
     import type {
+        Id,
         Item,
         Rect,
         DropTarget,
@@ -43,6 +44,7 @@
     export let disabled: boolean = false;
     export let disableScrollOnDrag: boolean = false;
     export let disableDropSpacing: boolean = false;
+    export let enableResizeListeners: boolean = false;
     export const id = dropTargetId.next();
 
     let cachedItems: Array<Item> = [];
@@ -56,7 +58,7 @@
     let currentWidth: number = 0;
     let currentHeight: number = 0;
     let mounted = false;
-    let potentiallDraggedId: string | undefined = undefined;
+    let potentiallDraggedId: Id | undefined = undefined;
     let currentlyDraggingOver: HoverResult = undefined;
     let previouslyDraggedOver: HoverResult[] = [];
     let draggableDragStart: [number, number] | undefined = undefined;
@@ -88,7 +90,8 @@
     const cleanupAfterDrag = () => {
         $dragging = 'none';
         document.body.removeChild($dragTarget.dragElement);
-        let containingElement = wrappingElements[$dragTarget.item.id];
+        let containingElement =
+            wrappingElements[($dragTarget.item.id as unknown) as string];
         containingElement.style.height = '';
         (containingElement
             .children[0] as HTMLElement).style.display = cachedDisplay;
@@ -169,7 +172,7 @@
 
     const handleDraggableMouseDown = (
         event: MouseEvent,
-        id: string,
+        id: Id,
         delayedEvent?: (event: MouseEvent) => void
     ) => {
         if (
@@ -206,7 +209,10 @@
             let dy = draggableDragStart[1] - event.clientY;
             if (dx * dx + dy * dy > DRAG_THRESHOLD) {
                 $dragging = 'picking-up';
-                const containingElement = wrappingElements[potentiallDraggedId];
+                const containingElement =
+                    wrappingElements[
+                        (potentiallDraggedId as unknown) as string
+                    ];
                 const cloned = makeDraggableElement(containingElement);
                 document.body.append(cloned);
                 $dragTarget = {
@@ -422,7 +428,8 @@
         const overlapping = [];
         for (let index = 0; index < cachedItems.length; index++) {
             const cachedItem = cachedItems[index];
-            const element = wrappingElements[cachedItem.id];
+            const element =
+                wrappingElements[(cachedItem.id as unknown) as string];
             if (
                 index >= cachedRects.length ||
                 cachedRects[index] === undefined
@@ -458,7 +465,7 @@
             overlapping.push({
                 index: lastIndex,
                 item: lastItem,
-                element: wrappingElements[lastItem.id],
+                element: wrappingElements[(lastItem.id as unknown) as string],
                 placement: 'after',
             });
         }
@@ -476,7 +483,7 @@
             overlappedItem = {
                 index: indexBefore,
                 item: itemBefore,
-                element: wrappingElements[itemBefore.id],
+                element: wrappingElements[(itemBefore.id as unknown) as string],
                 placement: 'after',
             };
         }
@@ -517,8 +524,9 @@
             let updatedCapacity = false;
             let updatedDisabled = false;
             if (
-                cachedDropZoneRect.width !== currentWidth ||
-                cachedDropZoneRect.height !== currentHeight
+                enableResizeListeners &&
+                (cachedDropZoneRect.width !== currentWidth ||
+                    cachedDropZoneRect.height !== currentHeight)
             ) {
                 let bounding = dropZone.getBoundingClientRect();
                 cachedDropZoneRect = {
@@ -630,7 +638,7 @@
         }
     }
 
-    const hasItem = (itemId: string) => {
+    const hasItem = (itemId: Id) => {
         return !!cachedItems.find((c) => c.id === itemId);
     };
 
@@ -740,15 +748,20 @@
     }
 
     onMount(() => {
-        let bounding = dropZone.getBoundingClientRect();
+        const bounding = dropZone.getBoundingClientRect();
         cachedDisabled = disabled;
         cachedCapacity = capacity - items.length;
-        cachedDropZoneRect = {
-            x: bounding.left,
-            y: bounding.top,
-            width: currentWidth,
-            height: currentHeight,
-        };
+        if (enableResizeListeners) {
+            cachedDropZoneRect = {
+                x: bounding.left,
+                y: bounding.top,
+                width: currentWidth,
+                height: currentHeight,
+            };
+        } else {
+            cachedDropZoneRect = bounding;
+        }
+
         $dropTargets = [
             ...$dropTargets,
             {
@@ -784,18 +797,32 @@
     <slot name="standin" data={}></slot>
 </div>
 -->
-<div
-    bind:this="{dropZone}"
-    bind:clientWidth="{currentWidth}"
-    bind:clientHeight="{currentHeight}"
-    class="dropContainer"
->
-    {#each cachedItems as item (item.id)}
-        <div bind:this="{wrappingElements[item.id]}">
-            <slot
-                name="listItem"
-                data="{{ item, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
-            />
-        </div>
-    {/each}
-</div>
+
+{#if enableResizeListeners}
+    <div
+        bind:this="{dropZone}"
+        bind:clientWidth="{currentWidth}"
+        bind:clientHeight="{currentHeight}"
+        class="dropContainer"
+    >
+        {#each cachedItems as item (item.id)}
+            <div bind:this="{wrappingElements[item.id]}">
+                <slot
+                    name="listItem"
+                    data="{{ item, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
+                />
+            </div>
+        {/each}
+    </div>
+{:else}
+    <div bind:this="{dropZone}" class="dropContainer">
+        {#each cachedItems as item (item.id)}
+            <div bind:this="{wrappingElements[item.id]}">
+                <slot
+                    name="listItem"
+                    data="{{ item, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
+                />
+            </div>
+        {/each}
+    </div>
+{/if}
