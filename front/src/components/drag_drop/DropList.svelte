@@ -8,7 +8,7 @@
 </style>
 
 <script lang="ts">
-    import { onMount, onDestroy, createEventDispatcher } from 'svelte';
+    import { onMount, tick, onDestroy, createEventDispatcher } from 'svelte';
     import { tweened } from 'svelte/motion';
     import { cubicOut } from 'svelte/easing';
     import {
@@ -41,6 +41,8 @@
     export let key: string | undefined = undefined;
     export let capacity = Number.POSITIVE_INFINITY;
     export let disabled: boolean = false;
+    export let disableScrollOnDrag: boolean = false;
+    export let disableDropSpacing: boolean = false;
     export const id = dropTargetId.next();
 
     let cachedItems: Array<Item> = [];
@@ -51,8 +53,8 @@
     let cachedDisplay: string | undefined;
     let wrappingElements: { [id: string]: HTMLDivElement } = {};
     let dropZone: HTMLDivElement;
-    let width: number = 0;
-    let height: number = 0;
+    let currentWidth: number = 0;
+    let currentHeight: number = 0;
     let mounted = false;
     let potentiallyDraggedItem: Item | undefined = undefined;
     let currentlyDraggingOver: HoverResult = undefined;
@@ -105,16 +107,20 @@
         ) {
             event.preventDefault();
             if (!!currentDropTarget) {
+                // Ensure we have the latest hoverResult, but don't update it to `undefined` if it was defined.
+                let hoverResult =
+                    currentDropTarget.dropTarget.hoverCallback() ||
+                    currentDropTarget.hoverResult;
                 $dragging = 'dropping';
                 let offset: { x: number; y: number };
                 // go go gadget structural typing
-                if (!!currentDropTarget.hoverResult) {
-                    const boundingRect = currentDropTarget.hoverResult.element.getBoundingClientRect();
-                    if (currentDropTarget.hoverResult.placement === 'before') {
+                if (!!hoverResult) {
+                    const boundingRect = hoverResult.element.getBoundingClientRect();
+                    if (hoverResult.placement === 'before') {
                         offset = boundingRect;
                     } else {
                         const strippedRect = removePaddingFromRect(
-                            currentDropTarget.hoverResult.element,
+                            hoverResult.element,
                             boundingRect
                         );
                         offset = {
@@ -130,9 +136,7 @@
                     offset.y - $dragTarget.sourceRect.y,
                 ];
                 await dragTween.set(position);
-                currentDropTarget.dropTarget.dropCallback(
-                    currentDropTarget.hoverResult
-                );
+                currentDropTarget.dropTarget.dropCallback(hoverResult);
                 // We only send drop events when reordering a list, since the element never really left
                 if (currentDropTarget.dropTarget.id !== id) {
                     dispatch('itemdraggedout', {
@@ -280,7 +284,7 @@
     };
 
     const startDragOver = (hoverResult: HoverResult) => {
-        if (!!dragScrollTween) {
+        if (disableDropSpacing) {
             return;
         }
         const draggedOffIndex = previouslyDraggedOver.findIndex(
@@ -319,6 +323,9 @@
     };
 
     const startDragOff = () => {
+        if (!currentlyDraggingOver) {
+            return;
+        }
         const indexOfCurrent = previouslyDraggedOver.findIndex(
             (prev) =>
                 prev.item.id === currentlyDraggingOver.item.id &&
@@ -360,6 +367,11 @@
     };
 
     const checkScroll = () => {
+        if (disableScrollOnDrag) {
+            dragScrollTween = undefined;
+            dragScrollTarget = dropZone.scrollTop;
+            return;
+        }
         const midpoint = computeMidpoint($dragTarget.cachedRect);
         let threshold = Math.min(
             Math.max(
@@ -390,9 +402,6 @@
         } else {
             dragScrollTween = undefined;
             dragScrollTarget = dropZone.scrollTop;
-        }
-        if (!!dragScrollTween && !!currentlyDraggingOver) {
-            startDragOff();
         }
     };
 
@@ -496,21 +505,22 @@
         });
     };
 
+    // Update the dropTarget for this dropZone
     $: {
         if (mounted) {
             let updatedRect = false;
             let updatedCapacity = false;
             let updatedDisabled = false;
             if (
-                cachedDropZoneRect.width !== width ||
-                cachedDropZoneRect.height !== height
+                cachedDropZoneRect.width !== currentWidth ||
+                cachedDropZoneRect.height !== currentHeight
             ) {
                 let bounding = dropZone.getBoundingClientRect();
                 cachedDropZoneRect = {
                     x: bounding.left,
                     y: bounding.top,
-                    width,
-                    height,
+                    width: currentWidth,
+                    height: currentHeight,
                 };
                 updatedRect = true;
             }
@@ -539,18 +549,22 @@
                         hoverCallback,
                         enterDropZone,
                         leaveDropZone,
+                        hasItem,
+                        getEventHandlers,
                     },
                 ];
             }
         }
     }
 
+    // Update list of items
     $: {
         if ($dragging === 'none') {
             cachedItems = [...items];
         }
     }
 
+    // Hide element that was dragged
     $: {
         if (
             $dragTarget?.controllingDropZoneId === id &&
@@ -562,6 +576,7 @@
         }
     }
 
+    // Drop preview transition in
     $: {
         if (!!currentlyDraggingOver && !!hoverEnterElementTween) {
             if (currentlyDraggingOver.placement == 'before') {
@@ -574,6 +589,7 @@
         }
     }
 
+    // Drop preview transition out
     $: {
         if (previouslyDraggedOver.length > 0 && !!hoverLeaveElementTweens) {
             const heights = $hoverLeaveElementTweens;
@@ -609,16 +625,36 @@
         }
     }
 
+    const hasItem = (item) => {
+        return !!cachedItems.find((c) => c.id === item.id);
+    };
+
+    const getEventHandlers = () => {
+        return {
+            handleMouseDown: handleDraggableMouseDown,
+            handleMouseUp: handleDraggableMouseUp,
+            handleMouseMove: handleDraggableMouseMove,
+        };
+    };
+
+    const postScrollUpdate = async () => {
+        await tick();
+        cachedRects = [];
+        if (dropZone.scrollTop === dragScrollTarget) {
+            checkScroll();
+        }
+        hoverCallback();
+    };
+
+    // Update scroll
     $: {
         if ($dragging === 'dragging' && !!dragScrollTween) {
             dropZone.scrollTop = $dragScrollTween;
-            cachedRects = [];
-            if (dropZone.scrollTop === dragScrollTarget) {
-                checkScroll();
-            }
+            postScrollUpdate();
         }
     }
 
+    // Move dragTarget
     $: {
         if ($dragTarget?.controllingDropZoneId === id) {
             // I like guards
@@ -705,8 +741,8 @@
         cachedDropZoneRect = {
             x: bounding.left,
             y: bounding.top,
-            width,
-            height,
+            width: currentWidth,
+            height: currentHeight,
         };
         $dropTargets = [
             ...$dropTargets,
@@ -721,6 +757,8 @@
                 hoverCallback,
                 enterDropZone,
                 leaveDropZone,
+                hasItem,
+                getEventHandlers,
             },
         ];
         mounted = true;
@@ -743,15 +781,15 @@
 -->
 <div
     bind:this="{dropZone}"
-    bind:clientWidth="{width}"
-    bind:clientHeight="{height}"
+    bind:clientWidth="{currentWidth}"
+    bind:clientHeight="{currentHeight}"
     class="dropContainer"
 >
     {#each cachedItems as item (item.id)}
         <div bind:this="{wrappingElements[item.id]}">
             <slot
                 name="listItem"
-                data="{{ item, handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove }}"
+                data="{{ item, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
             />
         </div>
     {/each}

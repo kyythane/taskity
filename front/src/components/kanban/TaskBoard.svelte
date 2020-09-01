@@ -1,7 +1,7 @@
 <script lang="ts">
     import TaskColumn from './TaskColumn.svelte';
     import { selectedTasks } from './stores';
-    const num = 500;
+    const num = 5;
     let todo = [...Array(num).keys()].map((i) => {
         return {
             id: `${i}`,

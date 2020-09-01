@@ -2,6 +2,11 @@ import { writable, Writable } from 'svelte/store';
 
 
 export type Item = { id: string };
+export type DragEventHandlers = {
+    handleMouseDown: (event: MouseEvent, item: Item) => void;
+    handleMouseUp: (event: MouseEvent) => void;
+    handleMouseMove: (event: MouseEvent) => void;
+};
 export type HoverResult = { index: number, item: Item, element: HTMLDivElement, placement: 'before' | 'after' };
 export type DropCallback = (dragTarget: HoverResult | undefined) => void;
 export type HoverCallback = () => HoverResult | undefined;
@@ -17,6 +22,8 @@ export type DropTarget = {
     hoverCallback: HoverCallback,
     enterDropZone: () => void,
     leaveDropZone: () => void,
+    hasItem: (item: Item) => boolean,
+    getEventHandlers: () => DragEventHandlers,
 };
 export type DragTarget = { key?: string, item: Item, controllingDropZoneId: number, sourceRect: Rect, dragElement: HTMLDivElement, cachedRect: Rect };
 

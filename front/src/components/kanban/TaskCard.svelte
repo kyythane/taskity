@@ -3,6 +3,7 @@
     import { selectedTasks } from './stores';
     import type { CardData } from './CardData';
     import Tag from '../utility/Tag.svelte';
+    import DragHandle from '../drag_drop/DragHandle.svelte';
     let hovered: boolean = false;
     let checked: boolean = false;
     export let cardData: CardData;
@@ -63,4 +64,7 @@
             </Tag>
         {/each}
     </div>
+    <DragHandle item="{cardData}">
+        <button>HANDLE</button>
+    </DragHandle>
 </div>

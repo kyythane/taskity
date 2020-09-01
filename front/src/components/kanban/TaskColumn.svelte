@@ -1,7 +1,7 @@
 <script lang="ts">
     import type { CardData } from './CardData';
     import TaskCard from './TaskCard.svelte';
-    import DragList from '../drag_drop/DragList.svelte';
+    import DropList from '../drag_drop/DropList.svelte';
     export let columnData: Array<CardData> = [];
     export let columnTitle: string;
     export let disabled: boolean = false;
@@ -14,22 +14,18 @@
     {#if columnTitle}
         <h2>{columnTitle}</h2>
     {/if}
-    <DragList
+    <DropList
         items="{columnData}"
         on:itemdroppedin
         on:itemdraggedout
         {disabled}
     >
-        <div
-            slot="listItem"
-            let:data="{{ item, handleMouseDown, handleMouseUp, handleMouseMove }}"
-        >
-            <TaskCard
-                cardData="{item}"
-                on:mousedown="{(event) => handleMouseDown(event, item)}"
-                on:mouseup="{handleMouseUp}"
-                on:mousemove="{handleMouseMove}"
-            />
+        <div slot="listItem" let:data="{{ item, dragEventHandlers }}">
+            <TaskCard cardData="{item}" />
         </div>
-    </DragList>
+    </DropList>
 </section>
+
+<!-- on:mousedown="{(event) => dragEventHandlers.handleMouseDown(event, item)}"
+                on:mouseup="{dragEventHandlers.handleMouseUp}"
+                on:mousemove="{dragEventHandlers.handleMouseMove}" -->
