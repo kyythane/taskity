@@ -27,6 +27,7 @@
     import {
         computeMidpoint,
         makeDraggableElement,
+        calculatePlacement,
         overlap,
         percentOverlap,
         removePaddingFromRect,
@@ -89,6 +90,13 @@
         | { dropTarget: DropTarget; hoverResult: HoverResult | undefined }
         | undefined = undefined;
     let scrollKey: 'scrollTop' | 'scrollLeft' = 'scrollTop';
+    let dimensionKey: 'height' | 'width' = 'height';
+    let paddingKeys:
+        | { before: 'paddingTop'; after: 'paddingBottom' }
+        | { before: 'paddingLeft'; after: 'paddingRight' } = {
+        before: 'paddingTop',
+        after: 'paddingBottom',
+    };
     let cachedDirection: 'horizontal' | 'vertical' = 'horizontal';
     const dispatch = createEventDispatcher();
 
@@ -109,8 +117,7 @@
         document.body.removeChild($dragTarget.dragElement);
         let containingElement =
             wrappingElements[($dragTarget.item.id as unknown) as string];
-        containingElement.style.width = '';
-        containingElement.style.height = '';
+        containingElement.style[dimensionKey] = '';
         (containingElement
             .children[0] as HTMLElement).style.display = cachedDisplay;
         cachedRects = [];
@@ -144,10 +151,17 @@
                             hoverResult.element,
                             boundingRect
                         );
-                        offset = {
-                            x: boundingRect.x,
-                            y: boundingRect.y + strippedRect.height,
-                        };
+                        if (direction === 'horizontal') {
+                            offset = {
+                                x: boundingRect.x + strippedRect.width,
+                                y: boundingRect.y,
+                            };
+                        } else {
+                            offset = {
+                                x: boundingRect.x,
+                                y: boundingRect.y + strippedRect.height,
+                            };
+                        }
                     }
                 } else {
                     offset = currentDropTarget.dropTarget.rect;
@@ -175,11 +189,7 @@
                 cleanupAfterDrag();
             } else {
                 $dragging = 'returning';
-                if (cachedDirection === 'horizontal') {
-                    sourceElementTween.set($dragTarget.sourceRect.width);
-                } else {
-                    sourceElementTween.set($dragTarget.sourceRect.height);
-                }
+                sourceElementTween.set($dragTarget.sourceRect[dimensionKey]);
                 if (!!currentlyDraggingOver) {
                     startDragOff();
                 }
@@ -256,18 +266,17 @@
                 currentlyDraggingOver = undefined;
                 currentDropTarget = undefined;
                 previouslyDraggedOver = [];
-                const startingSize =
-                    cachedDirection === 'horizontal'
-                        ? $dragTarget.sourceRect.width
-                        : $dragTarget.sourceRect.height;
-                sourceElementTween = tweened(startingSize, {
-                    duration: ANIMATION_MS,
-                    easing: cubicOut,
-                });
+                sourceElementTween = tweened(
+                    $dragTarget.sourceRect[dimensionKey],
+                    {
+                        duration: ANIMATION_MS,
+                        easing: cubicOut,
+                    }
+                );
                 updateContainingStyleSize(
                     containingElement,
                     cachedDirection,
-                    startingSize
+                    $dragTarget.sourceRect[dimensionKey]
                 );
                 const child = containingElement.children[0] as HTMLElement;
                 cachedDisplay = child.style.display;
@@ -334,34 +343,34 @@
                 previous.item.id === hoverResult.item.id &&
                 previous.placement === hoverResult.placement
         );
-        let startingHeight = 0;
+        let startingSize = 0;
         if (draggedOffIndex > -1) {
             previouslyDraggedOver = previouslyDraggedOver.filter(
                 (_, index) => index !== draggedOffIndex
             );
-            const heights = $hoverLeaveElementTweens;
-            startingHeight = Math.min(
-                heights[draggedOffIndex],
-                $dragTarget.cachedRect.height
+            const sizes = $hoverLeaveElementTweens;
+            startingSize = Math.min(
+                sizes[draggedOffIndex],
+                $dragTarget.cachedRect[dimensionKey]
             );
-            const filteredHeights = heights.filter(
+            const filteredSizes = sizes.filter(
                 (_, index) => index !== draggedOffIndex
             );
-            hoverLeaveElementTweens = tweened(filteredHeights, {
+            hoverLeaveElementTweens = tweened(filteredSizes, {
                 duration: ANIMATION_MS,
                 easing: cubicOut,
             });
             hoverLeaveElementTweens.set(
-                new Array(filteredHeights.length).fill(0)
+                new Array(filteredSizes.length).fill(0)
             );
         }
 
         currentlyDraggingOver = hoverResult;
-        hoverEnterElementTween = tweened(startingHeight, {
+        hoverEnterElementTween = tweened(startingSize, {
             duration: ANIMATION_MS,
             easing: cubicOut,
         });
-        hoverEnterElementTween.set($dragTarget.cachedRect.height);
+        hoverEnterElementTween.set($dragTarget.cachedRect[dimensionKey]);
     };
 
     const startDragOff = () => {
@@ -393,7 +402,7 @@
                 ...previousTweenValues,
                 Math.min(
                     $hoverEnterElementTween,
-                    $dragTarget.cachedRect.height
+                    $dragTarget.cachedRect[dimensionKey]
                 ),
             ],
             {
@@ -418,17 +427,14 @@
             cachedDirection === 'horizontal'
                 ? computeMidpoint($dragTarget.cachedRect).x
                 : computeMidpoint($dragTarget.cachedRect).y;
-        const compDimension =
-            cachedDirection === 'horizontal'
-                ? cachedDropZoneRect.width
-                : cachedDropZoneRect.height;
         const compOffset =
             cachedDirection === 'horizontal'
                 ? cachedDropZoneRect.x
                 : cachedDropZoneRect.y;
         let threshold = Math.min(
             Math.max(
-                SCROLL_ON_DRAG_THRESHOLD_PERCENT * compDimension,
+                SCROLL_ON_DRAG_THRESHOLD_PERCENT *
+                    cachedDropZoneRect[dimensionKey],
                 SCROLL_ON_DRAG_THRESHOLD_MIN_PIXELS
             ),
             SCROLL_ON_DRAG_THRESHOLD_MAX_PIXELS
@@ -441,7 +447,10 @@
                 dragScrollTarget = dropZone[scrollKey] - 100;
                 dragScrollTween.set(dragScrollTarget);
             }
-        } else if (midpoint >= compDimension - threshold + compOffset) {
+        } else if (
+            midpoint >=
+            cachedDropZoneRect[dimensionKey] - threshold + compOffset
+        ) {
             if (dragScrollTarget <= dropZone[scrollKey]) {
                 dragScrollTween = tweened(dropZone[scrollKey], {
                     duration: ANIMATION_MS,
@@ -480,11 +489,11 @@
                 element,
                 cachedRects[index]!
             );
-            let placement =
-                computeMidpoint(rectWithoutPadding).y >
-                computeMidpoint($dragTarget.cachedRect).y
-                    ? 'before'
-                    : 'after';
+            let placement = calculatePlacement(
+                rectWithoutPadding,
+                $dragTarget.cachedRect,
+                cachedDirection
+            );
             if (overlaps) {
                 overlapping.push({
                     index,
@@ -616,6 +625,12 @@
             cachedDirection = direction;
             scrollKey =
                 cachedDirection === 'horizontal' ? 'scrollLeft' : 'scrollTop';
+            dimensionKey =
+                cachedDirection === 'horizontal' ? 'width' : 'height';
+            paddingKeys =
+                cachedDirection === 'horizontal'
+                    ? { before: 'paddingLeft', after: 'paddingRight' }
+                    : { before: 'paddingTop', after: 'paddingBottom' };
         }
     }
 
@@ -636,11 +651,9 @@
     // Drop preview transition in
     $: {
         if (!!currentlyDraggingOver && !!hoverEnterElementTween) {
-            if (currentlyDraggingOver.placement == 'before') {
-                currentlyDraggingOver.element.style.paddingTop = `${$hoverEnterElementTween}px`;
-            } else {
-                currentlyDraggingOver.element.style.paddingBottom = `${$hoverEnterElementTween}px`;
-            }
+            currentlyDraggingOver.element.style[
+                paddingKeys[currentlyDraggingOver.placement]
+            ] = `${$hoverEnterElementTween}px`;
             // TODO: offset
             cachedRects = cachedRects.slice(0, currentlyDraggingOver.index);
         }
@@ -649,27 +662,25 @@
     // Drop preview transition out
     $: {
         if (previouslyDraggedOver.length > 0 && !!hoverLeaveElementTweens) {
-            const heights = $hoverLeaveElementTweens;
+            const sizes = $hoverLeaveElementTweens;
             previouslyDraggedOver = previouslyDraggedOver.map(
                 (target, index) => {
-                    if (target.placement === 'before') {
-                        target.element.style.paddingTop = `${heights[index]}px`;
-                    } else {
-                        target.element.style.paddingBottom = `${heights[index]}px`;
-                    }
+                    target.element.style[
+                        paddingKeys[target.placement]
+                    ] = `${sizes[index]}px`;
                     return target;
                 }
             );
             let zeros = 0;
-            for (let i = 0; i < heights.length; i++) {
-                if (heights[i] > 0) {
+            for (let i = 0; i < sizes.length; i++) {
+                if (sizes[i] > 0) {
                     break;
                 }
                 ++zeros;
             }
             if (zeros > 0) {
                 previouslyDraggedOver = previouslyDraggedOver.slice(zeros);
-                hoverLeaveElementTweens = tweened(heights.slice(zeros), {
+                hoverLeaveElementTweens = tweened(sizes.slice(zeros), {
                     duration: ANIMATION_MS,
                     easing: cubicOut,
                 });

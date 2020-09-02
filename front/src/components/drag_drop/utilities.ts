@@ -45,17 +45,24 @@ function pixelStringToNumber(pixelString: string) {
 }
 
 export function removePaddingFromHoverResult(result: HoverResult) {
-    if (result.placement === 'before') {
-        result.element.style.paddingTop = '';
-    } else {
-        result.element.style.paddingBottom = '';
-    }
+    result.element.style.paddingTop = '';
+    result.element.style.paddingBottom = '';
+    result.element.style.paddingLeft = '';
+    result.element.style.paddingRight = '';
 }
 
-export function updateContainingStyleSize(containingElement: HTMLDivElement, direction: string, amount: number) {
+export function updateContainingStyleSize(containingElement: HTMLDivElement, direction: 'horizontal' | 'vertical', amount: number) {
     if (direction === 'horizontal') {
         containingElement.style.width = `${amount}px`;
     } else {
         containingElement.style.height = `${amount}px`;
     }
+}
+
+export function calculatePlacement(rectA: Rect, rectB: Rect, direction: 'horizontal' | 'vertical'): 'before' | 'after' {
+    const key = direction === 'horizontal' ? 'x' : 'y';
+    return computeMidpoint(rectA)[key] >
+        computeMidpoint(rectB)[key]
+        ? 'before'
+        : 'after';
 }
