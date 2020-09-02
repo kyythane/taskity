@@ -51,3 +51,11 @@ export function removePaddingFromHoverResult(result: HoverResult) {
         result.element.style.paddingBottom = '';
     }
 }
+
+export function updateContainingStyleSize(containingElement: HTMLDivElement, direction: string, amount: number) {
+    if (direction === 'horizontal') {
+        containingElement.style.width = `${amount}px`;
+    } else {
+        containingElement.style.height = `${amount}px`;
+    }
+}

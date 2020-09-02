@@ -1,7 +1,7 @@
 <script lang="ts">
     import TaskColumn from './TaskColumn.svelte';
     import { selectedTasks } from './stores';
-    const num = 5;
+    const num = 50;
     let todo = [...Array(num).keys()].map((i) => {
         return {
             id: `${i}`,
@@ -25,7 +25,8 @@
     });
 </script>
 
-<section class="flex h-full w-full p-12">
+<!-- <section class="flex h-full w-full p-12"> -->
+<section class="h-full w-full p-12">
     <TaskColumn
         columnTitle="Todo"
         columnData="{todo}"

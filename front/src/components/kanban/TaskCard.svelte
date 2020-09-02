@@ -38,7 +38,7 @@
     on:mousemove
     on:mouseover="{onMouseIn}"
     on:mouseleave="{onMouseOut}"
-    class="rounded-md h-32 w-64 bg-white p-4 mt-2"
+    class="rounded-md h-32 w-64 bg-white p-4 ml-2"
 >
     {#if $selectedTasks.length > 0 || hovered}
         <input

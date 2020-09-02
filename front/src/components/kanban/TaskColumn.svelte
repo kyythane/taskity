@@ -7,10 +7,8 @@
     export let disabled: boolean = false;
 </script>
 
-<section
-    class="rounded-md border-2 border-gray-900 overflow-y-scroll h-full w-64
-    bg-gray-100"
->
+<!-- <section class="rounded-md border-2 border-gray-900 h-full w-64 bg-gray-100"> -->
+<section class="rounded-md border-2 border-gray-900 h-48 w-full bg-gray-100">
     {#if columnTitle}
         <h2>{columnTitle}</h2>
     {/if}
@@ -21,8 +19,16 @@
         {disabled}
         enableResizeListeners
     >
-        <div slot="listItem" let:data="{{ item, dragEventHandlers }}">
+        <div
+            slot="listItem"
+            let:data="{{ item, isDraggingOver, dragEventHandlers }}"
+        >
+            <!-- <div
+                style="{`${isDraggingOver ? 'border: 1rem solid blue;' : ''}`}"
+            > -->
             <TaskCard cardData="{item}" />
+            <!-- </div> -->
+
         </div>
     </DropList>
 </section>

@@ -1,9 +1,22 @@
 <style>
     .dropContainer {
-        overflow-y: scroll;
         height: 100%;
         width: 100%;
         overscroll-behavior: contain;
+    }
+
+    .dragContainer {
+        flex-shrink: 0;
+        flex-grow: 0;
+    }
+
+    .horizontal {
+        display: flex;
+        overflow-x: scroll;
+    }
+
+    .vertical {
+        overflow-y: scroll;
     }
 </style>
 
@@ -18,6 +31,7 @@
         percentOverlap,
         removePaddingFromRect,
         removePaddingFromHoverResult,
+        updateContainingStyleSize,
     } from './utilities';
     import { dragging, dropTargets, dragTarget, dropTargetId } from './stores';
 
@@ -45,6 +59,7 @@
     export let disableScrollOnDrag: boolean = false;
     export let disableDropSpacing: boolean = false;
     export let enableResizeListeners: boolean = false;
+    export let direction: 'horizontal' | 'vertical' = 'horizontal';
     export const id = dropTargetId.next();
 
     let cachedItems: Array<Item> = [];
@@ -73,6 +88,8 @@
     let currentDropTarget:
         | { dropTarget: DropTarget; hoverResult: HoverResult | undefined }
         | undefined = undefined;
+    let scrollKey: 'scrollTop' | 'scrollLeft' = 'scrollTop';
+    let cachedDirection: 'horizontal' | 'vertical' = 'horizontal';
     const dispatch = createEventDispatcher();
 
     const moveDraggable = (event: MouseEvent) => {
@@ -92,6 +109,7 @@
         document.body.removeChild($dragTarget.dragElement);
         let containingElement =
             wrappingElements[($dragTarget.item.id as unknown) as string];
+        containingElement.style.width = '';
         containingElement.style.height = '';
         (containingElement
             .children[0] as HTMLElement).style.display = cachedDisplay;
@@ -138,6 +156,7 @@
                     offset.x - $dragTarget.sourceRect.x,
                     offset.y - $dragTarget.sourceRect.y,
                 ];
+                // Tweened .set returns a promise that resolves, but our types don't show that
                 await dragTween.set(position);
                 currentDropTarget.dropTarget.dropCallback(hoverResult);
                 // We only send drop events when reordering a list, since the element never really left
@@ -156,11 +175,15 @@
                 cleanupAfterDrag();
             } else {
                 $dragging = 'returning';
-                // Tweened .set returns a promise that resolves, but our types don't show that
-                sourceElementTween.set($dragTarget.sourceRect.height);
+                if (cachedDirection === 'horizontal') {
+                    sourceElementTween.set($dragTarget.sourceRect.width);
+                } else {
+                    sourceElementTween.set($dragTarget.sourceRect.height);
+                }
                 if (!!currentlyDraggingOver) {
                     startDragOff();
                 }
+                // Tweened .set returns a promise that resolves, but our types don't show that
                 await dragTween.set([0, 0]);
                 dispatch('dragcancelled', {
                     item: $dragTarget.item,
@@ -233,11 +256,19 @@
                 currentlyDraggingOver = undefined;
                 currentDropTarget = undefined;
                 previouslyDraggedOver = [];
-                sourceElementTween = tweened($dragTarget.sourceRect.height, {
+                const startingSize =
+                    cachedDirection === 'horizontal'
+                        ? $dragTarget.sourceRect.width
+                        : $dragTarget.sourceRect.height;
+                sourceElementTween = tweened(startingSize, {
                     duration: ANIMATION_MS,
                     easing: cubicOut,
                 });
-                containingElement.style.height = `${$dragTarget.sourceRect.height}px`;
+                updateContainingStyleSize(
+                    containingElement,
+                    cachedDirection,
+                    startingSize
+                );
                 const child = containingElement.children[0] as HTMLElement;
                 cachedDisplay = child.style.display;
                 child.style.display = 'none';
@@ -380,39 +411,47 @@
     const checkScroll = () => {
         if (disableScrollOnDrag) {
             dragScrollTween = undefined;
-            dragScrollTarget = dropZone.scrollTop;
+            dragScrollTarget = dropZone[scrollKey];
             return;
         }
-        const midpoint = computeMidpoint($dragTarget.cachedRect);
+        const midpoint =
+            cachedDirection === 'horizontal'
+                ? computeMidpoint($dragTarget.cachedRect).x
+                : computeMidpoint($dragTarget.cachedRect).y;
+        const compDimension =
+            cachedDirection === 'horizontal'
+                ? cachedDropZoneRect.width
+                : cachedDropZoneRect.height;
+        const compOffset =
+            cachedDirection === 'horizontal'
+                ? cachedDropZoneRect.x
+                : cachedDropZoneRect.y;
         let threshold = Math.min(
             Math.max(
-                SCROLL_ON_DRAG_THRESHOLD_PERCENT * cachedDropZoneRect.height,
+                SCROLL_ON_DRAG_THRESHOLD_PERCENT * compDimension,
                 SCROLL_ON_DRAG_THRESHOLD_MIN_PIXELS
             ),
             SCROLL_ON_DRAG_THRESHOLD_MAX_PIXELS
         );
-        if (midpoint.y <= threshold + cachedDropZoneRect.y) {
-            if (dragScrollTarget >= dropZone.scrollTop) {
-                dragScrollTween = tweened(dropZone.scrollTop, {
+        if (midpoint <= threshold + compOffset) {
+            if (dragScrollTarget >= dropZone[scrollKey]) {
+                dragScrollTween = tweened(dropZone[scrollKey], {
                     duration: ANIMATION_MS,
                 });
-                dragScrollTarget = dropZone.scrollTop - 100;
+                dragScrollTarget = dropZone[scrollKey] - 100;
                 dragScrollTween.set(dragScrollTarget);
             }
-        } else if (
-            midpoint.y >=
-            cachedDropZoneRect.height - threshold + cachedDropZoneRect.y
-        ) {
-            if (dragScrollTarget <= dropZone.scrollTop) {
-                dragScrollTween = tweened(dropZone.scrollTop, {
+        } else if (midpoint >= compDimension - threshold + compOffset) {
+            if (dragScrollTarget <= dropZone[scrollKey]) {
+                dragScrollTween = tweened(dropZone[scrollKey], {
                     duration: ANIMATION_MS,
                 });
-                dragScrollTarget = dropZone.scrollTop + 100;
+                dragScrollTarget = dropZone[scrollKey] + 100;
                 dragScrollTween.set(dragScrollTarget);
             }
         } else {
             dragScrollTween = undefined;
-            dragScrollTarget = dropZone.scrollTop;
+            dragScrollTarget = dropZone[scrollKey];
         }
     };
 
@@ -574,6 +613,9 @@
     $: {
         if ($dragging === 'none') {
             cachedItems = [...items];
+            cachedDirection = direction;
+            scrollKey =
+                cachedDirection === 'horizontal' ? 'scrollLeft' : 'scrollTop';
         }
     }
 
@@ -583,9 +625,11 @@
             $dragTarget?.controllingDropZoneId === id &&
             ($dragging === 'picking-up' || $dragging === 'returning')
         ) {
-            wrappingElements[
-                $dragTarget.item.id
-            ].style.height = `${$sourceElementTween}px`;
+            updateContainingStyleSize(
+                wrappingElements[$dragTarget.item.id],
+                cachedDirection,
+                $sourceElementTween
+            );
         }
     }
 
@@ -653,7 +697,7 @@
     const postScrollUpdate = async () => {
         await tick();
         cachedRects = [];
-        if (dropZone.scrollTop === dragScrollTarget) {
+        if (dropZone[scrollKey] === dragScrollTarget) {
             checkScroll();
         }
         hoverCallback();
@@ -662,7 +706,7 @@
     // Update scroll
     $: {
         if ($dragging === 'dragging' && !!dragScrollTween) {
-            dropZone.scrollTop = $dragScrollTween;
+            dropZone[scrollKey] = $dragScrollTween;
             postScrollUpdate();
         }
     }
@@ -710,7 +754,7 @@
                         .reduce((acc, next) => {
                             if (
                                 next.overlap.overlapX > acc.overlap.overlapX ||
-                                next.overlap.overlapY < acc.overlap.overlapY
+                                next.overlap.overlapY > acc.overlap.overlapY
                             ) {
                                 return next;
                             }
@@ -803,24 +847,27 @@
         bind:this="{dropZone}"
         bind:clientWidth="{currentWidth}"
         bind:clientHeight="{currentHeight}"
-        class="dropContainer"
+        class="{`dropContainer ${cachedDirection === 'horizontal' ? 'horizontal' : 'vertical'}`}"
     >
         {#each cachedItems as item (item.id)}
-            <div bind:this="{wrappingElements[item.id]}">
+            <div bind:this="{wrappingElements[item.id]}" class="dragContainer">
                 <slot
                     name="listItem"
-                    data="{{ item, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
+                    data="{{ item, isDraggingOver: currentlyDraggingOver?.item.id === item.id, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
                 />
             </div>
         {/each}
     </div>
 {:else}
-    <div bind:this="{dropZone}" class="dropContainer">
+    <div
+        bind:this="{dropZone}"
+        class="{`dropContainer ${cachedDirection === 'horizontal' ? 'horizontal' : 'vertical'}`}"
+    >
         {#each cachedItems as item (item.id)}
-            <div bind:this="{wrappingElements[item.id]}">
+            <div bind:this="{wrappingElements[item.id]}" class="dragContainer">
                 <slot
                     name="listItem"
-                    data="{{ item, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
+                    data="{{ item, isDraggingOver: currentlyDraggingOver?.item.id === item.id, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
                 />
             </div>
         {/each}
