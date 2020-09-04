@@ -6,6 +6,8 @@
     }
 
     .dragContainer {
+        width: fit-content;
+        height: fit-content;
         flex-shrink: 0;
         flex-grow: 0;
     }
@@ -25,6 +27,7 @@
     import { tweened } from 'svelte/motion';
     import { cubicOut } from 'svelte/easing';
     import {
+        // createDebugRender,
         computeMidpoint,
         makeDraggableElement,
         calculatePlacement,
@@ -35,9 +38,16 @@
         updateContainingStyleSize,
         moveRectTo,
         pixelStringToNumber,
+        growOrShrinkRectInList,
         translateRectsBy,
     } from './utilities';
-    import { dragging, dropTargets, dragTarget, dropTargetId } from './stores';
+    import {
+        dragging,
+        dropTargets,
+        dragTarget,
+        dropTargetId,
+        dragDropSettings,
+    } from './stores';
 
     import type { Writable } from 'svelte/store';
     import type {
@@ -51,21 +61,21 @@
         HoverResult,
     } from './stores';
 
-    const DRAG_THRESHOLD = 25;
-    const ANIMATION_MS = 200;
-    const SCROLL_ON_DRAG_THRESHOLD_PERCENT = 0.1;
-    const SCROLL_ON_DRAG_THRESHOLD_MIN_PIXELS = 50;
-    const SCROLL_ON_DRAG_THRESHOLD_MAX_PIXELS = 150;
-
     export let items: Array<Item>;
     export let key: string | undefined = undefined;
     export let capacity = Number.POSITIVE_INFINITY;
     export let disabled: boolean = false;
-    export let disableScrollOnDrag: boolean = false;
-    export let disableDropSpacing: boolean = false;
-    export let enableResizeListeners: boolean = false;
-    export let direction: 'horizontal' | 'vertical' = 'horizontal';
+    export let disableScrollOnDrag: boolean =
+        $dragDropSettings.defaults.disableScrollOnDrag;
+    export let disableDropSpacing: boolean =
+        $dragDropSettings.defaults.disableDropSpacing;
+    export let enableResizeListeners: boolean =
+        $dragDropSettings.defaults.enableResizeListeners;
+    export let direction: 'horizontal' | 'vertical' =
+        $dragDropSettings.defaults.direction;
     export const id = dropTargetId.next();
+
+    //const debugRenderer = createDebugRender();
 
     let cachedItems: Array<Item> = [];
     let cachedRects: Array<Rect | undefined> = [];
@@ -245,7 +255,7 @@
         if (!!draggableDragStart && $dragging === 'none') {
             let dx = draggableDragStart.x - event.clientX;
             let dy = draggableDragStart.y - event.clientY;
-            if (dx * dx + dy * dy > DRAG_THRESHOLD) {
+            if (dx * dx + dy * dy > $dragDropSettings.dragThresholdPixels) {
                 $dragging = 'picking-up';
                 const containingElement =
                     wrappingElements[
@@ -265,7 +275,7 @@
                 dragTween = tweened(
                     { x: 0, y: 0 },
                     {
-                        duration: ANIMATION_MS,
+                        duration: $dragDropSettings.animationMs,
                         easing: cubicOut,
                     }
                 );
@@ -277,7 +287,7 @@
                 sourceElementTween = tweened(
                     $dragTarget.sourceRect[dimensionKey],
                     {
-                        duration: ANIMATION_MS,
+                        duration: $dragDropSettings.animationMs,
                         easing: cubicOut,
                     }
                 );
@@ -291,17 +301,7 @@
                 child.style.display = 'none';
                 await sourceElementTween.set(0);
                 $dragging = 'dragging';
-                const index = Math.max(
-                    0,
-                    cachedItems.findIndex(
-                        (item) => item.id === $dragTarget.item.id
-                    )
-                );
-                const offset =
-                    cachedDirection === 'horizontal'
-                        ? { x: -$dragTarget.sourceRect.width, y: 0 }
-                        : { x: 0, y: -$dragTarget.sourceRect.height };
-                cachedRects = translateRectsBy(cachedRects, index, offset);
+                cachedRects = [];
             }
         }
     };
@@ -370,7 +370,7 @@
                 (_, index) => index !== draggedOffIndex
             );
             hoverLeaveElementTweens = tweened(filteredSizes, {
-                duration: ANIMATION_MS,
+                duration: $dragDropSettings.animationMs,
                 easing: cubicOut,
             });
             hoverLeaveElementTweens.set(
@@ -380,7 +380,7 @@
 
         currentlyDraggingOver = hoverResult;
         hoverEnterElementTween = tweened(startingSize, {
-            duration: ANIMATION_MS,
+            duration: $dragDropSettings.animationMs,
             easing: cubicOut,
         });
         hoverEnterElementTween.set($dragTarget.cachedRect[dimensionKey]);
@@ -419,7 +419,7 @@
                 ),
             ],
             {
-                duration: ANIMATION_MS,
+                duration: $dragDropSettings.animationMs,
                 easing: cubicOut,
             }
         );
@@ -446,16 +446,16 @@
                 : cachedDropZoneRect.y;
         let threshold = Math.min(
             Math.max(
-                SCROLL_ON_DRAG_THRESHOLD_PERCENT *
+                $dragDropSettings.scrollOnDragThresholdPercent *
                     cachedDropZoneRect[dimensionKey],
-                SCROLL_ON_DRAG_THRESHOLD_MIN_PIXELS
+                $dragDropSettings.scrollOnDragMinPixels
             ),
-            SCROLL_ON_DRAG_THRESHOLD_MAX_PIXELS
+            $dragDropSettings.scrollOnDragMaxPixels
         );
         if (midpoint <= threshold + compOffset) {
             if (dragScrollTarget >= dropZone[scrollKey]) {
                 dragScrollTween = tweened(dropZone[scrollKey], {
-                    duration: ANIMATION_MS,
+                    duration: $dragDropSettings.animationMs,
                 });
                 dragScrollTarget = dropZone[scrollKey] - 100;
                 dragScrollTween.set(dragScrollTarget);
@@ -466,7 +466,7 @@
         ) {
             if (dragScrollTarget <= dropZone[scrollKey]) {
                 dragScrollTween = tweened(dropZone[scrollKey], {
-                    duration: ANIMATION_MS,
+                    duration: $dragDropSettings.animationMs,
                 });
                 dragScrollTarget = dropZone[scrollKey] + 100;
                 dragScrollTween.set(dragScrollTarget);
@@ -675,7 +675,7 @@
                 cachedDirection === 'horizontal'
                     ? { x: delta, y: 0 }
                     : { x: 0, y: delta };
-            cachedRects = translateRectsBy(
+            cachedRects = growOrShrinkRectInList(
                 cachedRects,
                 currentlyDraggingOver.index,
                 offsetPosition
@@ -711,7 +711,7 @@
             if (zeros > 0) {
                 previouslyDraggedOver = previouslyDraggedOver.slice(zeros);
                 hoverLeaveElementTweens = tweened(sizes.slice(zeros), {
-                    duration: ANIMATION_MS,
+                    duration: $dragDropSettings.animationMs,
                     easing: cubicOut,
                 });
                 hoverLeaveElementTweens.set(
@@ -723,7 +723,7 @@
                     cachedDirection === 'horizontal'
                         ? { x: delta, y: 0 }
                         : { x: 0, y: delta };
-                cachedRects = translateRectsBy(
+                cachedRects = growOrShrinkRectInList(
                     cachedRects,
                     index,
                     offsetPosition
@@ -747,11 +747,13 @@
     const postScrollUpdate = async (previous: number) => {
         await tick();
         const delta = dropZone[scrollKey] - previous;
-        const offsetPosition =
-            cachedDirection === 'horizontal'
-                ? { x: -delta, y: 0 }
-                : { x: 0, y: -delta };
-        cachedRects = translateRectsBy(cachedRects, 0, offsetPosition);
+        if (delta !== 0) {
+            const offsetPosition =
+                cachedDirection === 'horizontal'
+                    ? { x: -delta, y: 0 }
+                    : { x: 0, y: -delta };
+            cachedRects = translateRectsBy(cachedRects, 0, offsetPosition);
+        }
         if (dropZone[scrollKey] === dragScrollTarget) {
             checkScroll();
         }
@@ -777,8 +779,8 @@
                     const dragOffset = $dragTween;
                     target.dragElement.style.transform = `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0)`;
                     target.cachedRect = moveRectTo(target.cachedRect, {
-                        x: dragOffset.x + draggableDragStart.x,
-                        y: dragOffset.y + draggableDragStart.y,
+                        x: dragOffset.x + target.sourceRect.x,
+                        y: dragOffset.y + target.sourceRect.y,
                     });
                     return target;
                 });

@@ -1,5 +1,27 @@
 import type { Rect, HoverResult, Position } from "./stores";
 
+export function createDebugRender() {
+    let canvas = document.getElementsByTagName('canvas')[0];
+    if (!!canvas) {
+        return canvas.getContext('2d');
+    }
+    canvas = document.createElement('canvas'); //Create a canvas element
+    //Set canvas width/height
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    //Set canvas drawing area width/height
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    //Position canvas
+    canvas.style.position = 'absolute';
+    canvas.style.left = '0px';
+    canvas.style.top = '0px';
+    canvas.style.zIndex = '100000';
+    canvas.style.pointerEvents = 'none'; //Make sure you can click 'through' the canvas
+    document.body.appendChild(canvas); //Append canvas to body element
+    return canvas.getContext('2d');
+}
+
 export function makeDraggableElement(originalElement: HTMLDivElement) {
     const rect = originalElement.getBoundingClientRect();
     const draggedEl = originalElement.cloneNode(true) as HTMLDivElement;
@@ -65,6 +87,16 @@ export function calculatePlacement(rectA: Rect, rectB: Rect, direction: 'horizon
         computeMidpoint(rectB)[key]
         ? 'before'
         : 'after';
+}
+
+export function growOrShrinkRectInList(rects: Array<Rect>, startIndex: number, offset: Position) {
+    const newRects = [...rects];
+    const toResize = newRects[startIndex];
+    newRects[startIndex] = { x: toResize.x, y: toResize.y, width: toResize.width + offset.x, height: toResize.height + offset.y };
+    for (let i: number = startIndex + 1; i < newRects.length; i++) {
+        newRects[i] = translateRectBy(newRects[i], offset);
+    }
+    return newRects;
 }
 
 export function translateRectsBy(rects: Array<Rect>, startIndex: number, offset: Position) {

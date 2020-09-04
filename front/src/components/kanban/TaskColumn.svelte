@@ -18,6 +18,7 @@
         on:itemdraggedout
         {disabled}
         enableResizeListeners
+        direction="horizontal"
     >
         <div
             slot="listItem"

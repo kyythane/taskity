@@ -27,7 +27,33 @@ export type DropTarget = {
     getEventHandlers: () => DragEventHandlers,
 };
 export type DragTarget = { key?: string, item: Item, controllingDropZoneId: number, sourceRect: Rect, dragElement: HTMLDivElement, cachedRect: Rect };
+export type DragDropSettings = {
+    defaults: {
+        disableScrollOnDrag: boolean,
+        disableDropSpacing: boolean,
+        enableResizeListeners: boolean,
+        direction: 'horizontal' | 'vertical',
+    }
+    dragThresholdPixels: number,
+    animationMs: number,
+    scrollOnDragThresholdPercent: number,
+    scrollOnDragMinPixels: number,
+    scrollOnDragMaxPixels: number,
+};
 
+export const dragDropSettings: Writable<DragDropSettings> = writable({
+    defaults: {
+        disableScrollOnDrag: false,
+        disableDropSpacing: false,
+        enableResizeListeners: false,
+        direction: 'vertical',
+    },
+    dragThresholdPixels: 25,
+    animationMs: 200,
+    scrollOnDragThresholdPercent: 0.1,
+    scrollOnDragMinPixels: 50,
+    scrollOnDragMaxPixels: 150,
+});
 export const dropTargets: Writable<Array<DropTarget>> = writable([]);
 export const dragging: Writable<'none' | 'picking-up' | 'dragging' | 'returning' | 'dropping'> = writable('none');
 export const dragTarget: Writable<DragTarget | undefined> = writable(undefined);
