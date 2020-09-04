@@ -10,6 +10,7 @@ export type DragEventHandlers = {
 export type HoverResult = { index: number, item: Item, element: HTMLDivElement, placement: 'before' | 'after' };
 export type DropCallback = (dragTarget: HoverResult | undefined) => void;
 export type HoverCallback = () => HoverResult | undefined;
+export type Position = { x: number, y: number };
 export type Rect = { x: number, y: number, width: number, height: number };
 export type DropTarget = {
     id: number,

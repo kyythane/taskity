@@ -33,6 +33,9 @@
         removePaddingFromRect,
         removePaddingFromHoverResult,
         updateContainingStyleSize,
+        moveRectTo,
+        pixelStringToNumber,
+        translateRectsBy,
     } from './utilities';
     import { dragging, dropTargets, dragTarget, dropTargetId } from './stores';
 
@@ -40,6 +43,7 @@
     import type {
         Id,
         Item,
+        Position,
         Rect,
         DropTarget,
         DropCallback,
@@ -77,10 +81,10 @@
     let potentiallDraggedId: Id | undefined = undefined;
     let currentlyDraggingOver: HoverResult = undefined;
     let previouslyDraggedOver: HoverResult[] = [];
-    let draggableDragStart: [number, number] | undefined = undefined;
+    let draggableDragStart: Position | undefined = undefined;
     let handleDelayedEvent: (() => void) | undefined;
     // Tweened isn't exported, so use Writable since it is _mostly_ correct
-    let dragTween: Writable<[number, number]> | undefined = undefined;
+    let dragTween: Writable<Position> | undefined = undefined;
     let sourceElementTween: Writable<number> | undefined = undefined;
     let hoverEnterElementTween: Writable<number> | undefined = undefined;
     let hoverLeaveElementTweens: Writable<number[]> | undefined = undefined;
@@ -106,9 +110,10 @@
             ($dragging === 'picking-up' || $dragging === 'dragging')
         ) {
             event.preventDefault();
-            let offsetX = event.clientX - draggableDragStart[0];
-            let offsetY = event.clientY - draggableDragStart[1];
-            $dragTween = [offsetX, offsetY];
+            $dragTween = {
+                x: event.clientX - draggableDragStart.x,
+                y: event.clientY - draggableDragStart.y,
+            };
         }
     };
 
@@ -166,10 +171,10 @@
                 } else {
                     offset = currentDropTarget.dropTarget.rect;
                 }
-                const position: [number, number] = [
-                    offset.x - $dragTarget.sourceRect.x,
-                    offset.y - $dragTarget.sourceRect.y,
-                ];
+                const position = {
+                    x: offset.x - $dragTarget.sourceRect.x,
+                    y: offset.y - $dragTarget.sourceRect.y,
+                };
                 // Tweened .set returns a promise that resolves, but our types don't show that
                 await dragTween.set(position);
                 currentDropTarget.dropTarget.dropCallback(hoverResult);
@@ -194,7 +199,7 @@
                     startDragOff();
                 }
                 // Tweened .set returns a promise that resolves, but our types don't show that
-                await dragTween.set([0, 0]);
+                await dragTween.set({ x: 0, y: 0 });
                 dispatch('dragcancelled', {
                     item: $dragTarget.item,
                 });
@@ -213,7 +218,7 @@
             !!cachedItems.find((c) => c.id === id) &&
             event.button === 0
         ) {
-            draggableDragStart = [event.clientX, event.clientY];
+            draggableDragStart = { x: event.clientX, y: event.clientY };
             potentiallDraggedId = id;
             if (!!delayedEvent) {
                 handleDelayedEvent = () => {
@@ -238,8 +243,8 @@
 
     const handleDraggableMouseMove = async (event: MouseEvent) => {
         if (!!draggableDragStart && $dragging === 'none') {
-            let dx = draggableDragStart[0] - event.clientX;
-            let dy = draggableDragStart[1] - event.clientY;
+            let dx = draggableDragStart.x - event.clientX;
+            let dy = draggableDragStart.y - event.clientY;
             if (dx * dx + dy * dy > DRAG_THRESHOLD) {
                 $dragging = 'picking-up';
                 const containingElement =
@@ -257,10 +262,13 @@
                     sourceRect: containingElement.getBoundingClientRect(),
                     cachedRect: cloned.getBoundingClientRect(),
                 };
-                dragTween = tweened([0, 0], {
-                    duration: ANIMATION_MS,
-                    easing: cubicOut,
-                });
+                dragTween = tweened(
+                    { x: 0, y: 0 },
+                    {
+                        duration: ANIMATION_MS,
+                        easing: cubicOut,
+                    }
+                );
                 potentiallDraggedId = undefined;
                 handleDelayedEvent = undefined;
                 currentlyDraggingOver = undefined;
@@ -283,12 +291,17 @@
                 child.style.display = 'none';
                 await sourceElementTween.set(0);
                 $dragging = 'dragging';
-                cachedRects = cachedRects.slice(
+                const index = Math.max(
                     0,
                     cachedItems.findIndex(
                         (item) => item.id === $dragTarget.item.id
                     )
                 );
+                const offset =
+                    cachedDirection === 'horizontal'
+                        ? { x: -$dragTarget.sourceRect.width, y: 0 }
+                        : { x: 0, y: -$dragTarget.sourceRect.height };
+                cachedRects = translateRectsBy(cachedRects, index, offset);
             }
         }
     };
@@ -466,9 +479,6 @@
 
     const hoverCallback: HoverCallback = () => {
         if (cachedItems.length === 0) {
-            if (!!currentlyDraggingOver) {
-                startDragOff();
-            }
             return undefined;
         }
         checkScroll();
@@ -651,11 +661,25 @@
     // Drop preview transition in
     $: {
         if (!!currentlyDraggingOver && !!hoverEnterElementTween) {
+            const offset = $hoverEnterElementTween;
+            const lastOffset = pixelStringToNumber(
+                currentlyDraggingOver.element.style[
+                    paddingKeys[currentlyDraggingOver.placement]
+                ]
+            );
             currentlyDraggingOver.element.style[
                 paddingKeys[currentlyDraggingOver.placement]
-            ] = `${$hoverEnterElementTween}px`;
-            // TODO: offset
-            cachedRects = cachedRects.slice(0, currentlyDraggingOver.index);
+            ] = `${offset}px`;
+            const delta = offset - lastOffset;
+            const offsetPosition =
+                cachedDirection === 'horizontal'
+                    ? { x: delta, y: 0 }
+                    : { x: 0, y: delta };
+            cachedRects = translateRectsBy(
+                cachedRects,
+                currentlyDraggingOver.index,
+                offsetPosition
+            );
         }
     }
 
@@ -663,8 +687,14 @@
     $: {
         if (previouslyDraggedOver.length > 0 && !!hoverLeaveElementTweens) {
             const sizes = $hoverLeaveElementTweens;
+            const deltas: Array<{ index: number; delta: number }> = [];
             previouslyDraggedOver = previouslyDraggedOver.map(
                 (target, index) => {
+                    const lastSize = pixelStringToNumber(
+                        target.element.style[paddingKeys[target.placement]]
+                    );
+                    const delta = sizes[index] - lastSize;
+                    deltas.push({ index: target.index, delta });
                     target.element.style[
                         paddingKeys[target.placement]
                     ] = `${sizes[index]}px`;
@@ -688,8 +718,17 @@
                     new Array(previouslyDraggedOver.length).fill(0)
                 );
             }
-            // TODO: offsets
-            cachedRects = [];
+            deltas.forEach(({ index, delta }) => {
+                const offsetPosition =
+                    cachedDirection === 'horizontal'
+                        ? { x: delta, y: 0 }
+                        : { x: 0, y: delta };
+                cachedRects = translateRectsBy(
+                    cachedRects,
+                    index,
+                    offsetPosition
+                );
+            });
         }
     }
 
@@ -705,20 +744,27 @@
         };
     };
 
-    const postScrollUpdate = async () => {
+    const postScrollUpdate = async (previous: number) => {
         await tick();
-        cachedRects = [];
+        const delta = dropZone[scrollKey] - previous;
+        const offsetPosition =
+            cachedDirection === 'horizontal'
+                ? { x: -delta, y: 0 }
+                : { x: 0, y: -delta };
+        cachedRects = translateRectsBy(cachedRects, 0, offsetPosition);
         if (dropZone[scrollKey] === dragScrollTarget) {
             checkScroll();
         }
+        // TODO: I think this is part of the padding bug, but we need to run the
         hoverCallback();
     };
 
     // Update scroll
     $: {
         if ($dragging === 'dragging' && !!dragScrollTween) {
+            const previous = dropZone[scrollKey];
             dropZone[scrollKey] = $dragScrollTween;
-            postScrollUpdate();
+            postScrollUpdate(previous);
         }
     }
 
@@ -728,8 +774,12 @@
             // I like guards
             if ($dragging !== 'none') {
                 dragTarget.update((target) => {
-                    target.dragElement.style.transform = `translate3d(${$dragTween[0]}px, ${$dragTween[1]}px, 0)`;
-                    target.cachedRect = target.dragElement.getBoundingClientRect();
+                    const dragOffset = $dragTween;
+                    target.dragElement.style.transform = `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0)`;
+                    target.cachedRect = moveRectTo(target.cachedRect, {
+                        x: dragOffset.x + draggableDragStart.x,
+                        y: dragOffset.y + draggableDragStart.y,
+                    });
                     return target;
                 });
             }

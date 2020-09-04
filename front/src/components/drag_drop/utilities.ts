@@ -1,4 +1,4 @@
-import type { Rect, HoverResult } from "./stores";
+import type { Rect, HoverResult, Position } from "./stores";
 
 export function makeDraggableElement(originalElement: HTMLDivElement) {
     const rect = originalElement.getBoundingClientRect();
@@ -40,7 +40,7 @@ export function removePaddingFromRect(element: HTMLElement, rect: Rect) {
     return { x: rect.x + left, y: rect.y + top, width: rect.width - (left + right), height: rect.height - (top + bottom) };
 }
 
-function pixelStringToNumber(pixelString: string) {
+export function pixelStringToNumber(pixelString: string) {
     return (pixelString && pixelString.length > 0) ? Number.parseFloat(pixelString.substring(0, pixelString.length - 2)) : 0;
 }
 
@@ -65,4 +65,20 @@ export function calculatePlacement(rectA: Rect, rectB: Rect, direction: 'horizon
         computeMidpoint(rectB)[key]
         ? 'before'
         : 'after';
+}
+
+export function translateRectsBy(rects: Array<Rect>, startIndex: number, offset: Position) {
+    const newRects = [...rects];
+    for (let i: number = startIndex; i < newRects.length; i++) {
+        newRects[i] = translateRectBy(newRects[i], offset);
+    }
+    return newRects;
+}
+
+function translateRectBy(rect: Rect, offset: Position) {
+    return moveRectTo(rect, { x: rect.x + offset.x, y: rect.y + offset.y });
+}
+
+export function moveRectTo({ width, height }: Rect, { x, y }: Position) {
+    return { x, y, width, height };
 }
