@@ -133,12 +133,32 @@
         let containingElement =
             wrappingElements[($dragTarget.item.id as unknown) as string];
         containingElement.style[dimensionKey] = '';
+        containingElement.style.paddingTop = '';
+        containingElement.style.paddingBottom = '';
+        containingElement.style.paddingLeft = '';
+        containingElement.style.paddingRight = '';
         (containingElement
             .children[0] as HTMLElement).style.display = cachedDisplay;
+        if (
+            !!currentlyDraggingOver &&
+            currentlyDraggingOver.item.id === $dragTarget.item.id
+        ) {
+            currentlyDraggingOver = undefined;
+            hoverEnterElementTween = undefined;
+        }
+        $dropTargets
+            .filter((target) => target.key === key)
+            .forEach((target) => target.cleanupDropZone());
+        $dragTarget = undefined;
+    };
+
+    const cleanupDropZone = () => {
+        if (!!currentlyDraggingOver) {
+            startDragOff();
+        }
         cachedRects = [];
         draggableDragStart = undefined;
         cachedDisplay = undefined;
-        $dragTarget = undefined;
         currentDropTarget = undefined;
         dragScrollTween = undefined;
     };
@@ -261,7 +281,10 @@
                     wrappingElements[
                         (potentiallDraggedId as unknown) as string
                     ];
-                const cloned = makeDraggableElement(containingElement);
+                const cloned = makeDraggableElement(
+                    containingElement,
+                    potentiallDraggedId
+                );
                 document.body.append(cloned);
                 $dragTarget = {
                     item: cachedItems.find(
@@ -622,6 +645,7 @@
                         leaveDropZone,
                         hasItem,
                         getEventHandlers,
+                        cleanupDropZone,
                     },
                 ];
             }
@@ -630,7 +654,7 @@
 
     // Update list of items
     $: {
-        if ($dragging === 'none') {
+        if ($dragging === 'none' || key !== $dragTarget.key) {
             cachedItems = [...items];
             cachedDirection = direction;
             scrollKey =
@@ -675,11 +699,13 @@
                 cachedDirection === 'horizontal'
                     ? { x: delta, y: 0 }
                     : { x: 0, y: delta };
-            cachedRects = growOrShrinkRectInList(
-                cachedRects,
-                currentlyDraggingOver.index,
-                offsetPosition
-            );
+            if (cachedRects.length >= currentlyDraggingOver.index) {
+                cachedRects = growOrShrinkRectInList(
+                    cachedRects,
+                    currentlyDraggingOver.index,
+                    offsetPosition
+                );
+            }
         }
     }
 
@@ -719,15 +745,17 @@
                 );
             }
             deltas.forEach(({ index, delta }) => {
-                const offsetPosition =
-                    cachedDirection === 'horizontal'
-                        ? { x: delta, y: 0 }
-                        : { x: 0, y: delta };
-                cachedRects = growOrShrinkRectInList(
-                    cachedRects,
-                    index,
-                    offsetPosition
-                );
+                if (cachedRects.length >= index) {
+                    const offsetPosition =
+                        cachedDirection === 'horizontal'
+                            ? { x: delta, y: 0 }
+                            : { x: 0, y: delta };
+                    cachedRects = growOrShrinkRectInList(
+                        cachedRects,
+                        index,
+                        offsetPosition
+                    );
+                }
             });
         }
     }
@@ -825,6 +853,7 @@
                         });
                 }
 
+                //console.log(currentDropTarget);
                 if (
                     overlapping &&
                     overlapping.overlap.overlapX > 0 &&
@@ -884,6 +913,7 @@
                 leaveDropZone,
                 hasItem,
                 getEventHandlers,
+                cleanupDropZone,
             },
         ];
         mounted = true;

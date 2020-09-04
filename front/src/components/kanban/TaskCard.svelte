@@ -65,6 +65,6 @@
         {/each}
     </div>
     <DragHandle itemId="{cardData.id}">
-        <button>HANDLE</button>
+        <div>HANDLE</div>
     </DragHandle>
 </div>

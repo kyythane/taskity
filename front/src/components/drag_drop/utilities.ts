@@ -1,4 +1,4 @@
-import type { Rect, HoverResult, Position } from "./stores";
+import type { Rect, HoverResult, Position, Id } from "./stores";
 
 export function createDebugRender() {
     let canvas = document.getElementsByTagName('canvas')[0];
@@ -22,15 +22,19 @@ export function createDebugRender() {
     return canvas.getContext('2d');
 }
 
-export function makeDraggableElement(originalElement: HTMLDivElement) {
+export function makeDraggableElement(originalElement: HTMLDivElement, id: Id) {
     const rect = originalElement.getBoundingClientRect();
     const draggedEl = originalElement.cloneNode(true) as HTMLDivElement;
-    draggedEl.id = `drag-placeholder`;
+    draggedEl.id = `reactive-dnd-drag-placeholder`;
     draggedEl.style.position = "fixed";
     draggedEl.style.top = `${rect.top}px`;
     draggedEl.style.left = `${rect.left}px`;
     draggedEl.style.zIndex = '9999';
     draggedEl.style.cursor = 'grabbing';
+    let dragHandle = draggedEl.querySelector(`#reactive-dnd-drag-handle-${id}`) as HTMLDivElement;
+    if (!!dragHandle) {
+        dragHandle.style.cursor = 'grabbing';
+    }
     return draggedEl;
 }
 
@@ -92,6 +96,7 @@ export function calculatePlacement(rectA: Rect, rectB: Rect, direction: 'horizon
 export function growOrShrinkRectInList(rects: Array<Rect>, startIndex: number, offset: Position) {
     const newRects = [...rects];
     const toResize = newRects[startIndex];
+    if (!toResize || !offset) { console.log(toResize, rects, startIndex, offset); }
     newRects[startIndex] = { x: toResize.x, y: toResize.y, width: toResize.width + offset.x, height: toResize.height + offset.y };
     for (let i: number = startIndex + 1; i < newRects.length; i++) {
         newRects[i] = translateRectBy(newRects[i], offset);

@@ -25,6 +25,7 @@ export type DropTarget = {
     leaveDropZone: () => void,
     hasItem: (itemId: Id) => boolean,
     getEventHandlers: () => DragEventHandlers,
+    cleanupDropZone: () => void,
 };
 export type DragTarget = { key?: string, item: Item, controllingDropZoneId: number, sourceRect: Rect, dragElement: HTMLDivElement, cachedRect: Rect };
 export type DragDropSettings = {
