@@ -15,32 +15,31 @@
     export let itemId: Id;
     export let disabled: boolean = false;
 
-    let className: string = 'default';
     let dropZone: DropTarget;
 
     $: {
         dropZone = $dropTargets.find((target) => target.hasItem(itemId));
-    }
-
-    $: {
-        if (disabled) {
-            className = 'disabled';
-        } else {
-            className = 'default';
-        }
     }
 </script>
 
 <div
     id="{`reactive-dnd-drag-handle-${itemId}`}"
     on:mousedown="{(event) => {
-        if (!disabled) {
-            dropZone?.getEventHandlers().handleMouseDown(event, itemId);
+        if (!disabled && !!dropZone) {
+            dropZone.getEventHandlers().handleMouseDown(event, itemId);
         }
     }}"
-    on:mouseup="{dropZone?.getEventHandlers().handleMouseUp}"
-    on:mousemove="{dropZone?.getEventHandlers().handleMouseMove}"
-    class="{className}"
+    on:mouseup="{(event) => {
+        if (!!dropZone) {
+            dropZone.getEventHandlers().handleMouseUp(event);
+        }
+    }}"
+    on:mousemove="{(event) => {
+        if (!!dropZone) {
+            dropZone.getEventHandlers().handleMouseMove(event);
+        }
+    }}"
+    class="{disabled ? 'disabled' : 'default'}"
 >
     <slot />
 </div>

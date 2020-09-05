@@ -997,7 +997,7 @@
             <div bind:this="{wrappingElements[item.id]}" class="dragContainer">
                 <slot
                     name="listItem"
-                    data="{{ item, isDraggingOver: currentlyDraggingOver?.item.id === item.id, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
+                    data="{{ item, isDraggingOver: !!currentlyDraggingOver && currentlyDraggingOver.item.id === item.id, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
                 />
             </div>
         {/each}
@@ -1011,7 +1011,7 @@
             <div bind:this="{wrappingElements[item.id]}" class="dragContainer">
                 <slot
                     name="listItem"
-                    data="{{ item, isDraggingOver: currentlyDraggingOver?.item.id === item.id, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
+                    data="{{ item, isDraggingOver: !!currentlyDraggingOver && currentlyDraggingOver.item.id === item.id, dragEventHandlers: { handleMouseDown: handleDraggableMouseDown, handleMouseUp: handleDraggableMouseUp, handleMouseMove: handleDraggableMouseMove } }}"
                 />
             </div>
         {/each}
