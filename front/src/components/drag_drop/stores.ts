@@ -7,6 +7,8 @@ export const dragDropSettings: Writable<DragDropSettings> = writable({
         disableDropSpacing: false,
         enableResizeListeners: false,
         direction: 'vertical',
+        minDragScrollSpeed: 75,
+        maxDragScrollSpeed: 375,
     },
     dragThresholdPixels: 25,
     animationMs: 200,

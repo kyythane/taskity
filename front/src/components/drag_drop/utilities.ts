@@ -119,3 +119,11 @@ function translateRectBy(rect: Rect, offset: Position) {
 export function moveRectTo({ width, height }: Rect, { x, y }: Position) {
     return { x, y, width, height };
 }
+
+export function clamp(num: number, min: number = 0, max: number = 1) {
+    return Math.max(min, Math.min(max, num));
+}
+
+export function lerp(percent: number, min: number, max: number) {
+    return clamp(percent) * (max - min) + min;
+}

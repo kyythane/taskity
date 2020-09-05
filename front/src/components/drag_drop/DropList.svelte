@@ -27,7 +27,7 @@
     import { tweened } from 'svelte/motion';
     import { cubicOut } from 'svelte/easing';
     import {
-        // createDebugRender,
+        createDebugRender,
         computeMidpoint,
         makeDraggableElement,
         calculatePlacement,
@@ -40,6 +40,7 @@
         pixelStringToNumber,
         growOrShrinkRectInList,
         translateRectsBy,
+        lerp,
     } from './utilities';
     import {
         dragging,
@@ -80,7 +81,7 @@
     ) => boolean = () => true;
     export const id = dropTargetId.next();
 
-    //const debugRenderer = createDebugRender();
+    const debugRenderer = createDebugRender();
     const cache = createDropTargetCache({
         items: [],
         direction,
@@ -482,23 +483,66 @@
             ),
             $dragDropSettings.scrollOnDragMaxPixels
         );
+        debugRenderer.clearRect(0, 0, window.innerWidth, window.innerHeight);
+        debugRenderer.beginPath();
+        debugRenderer.rect(
+            compOffset,
+            cachedDropZoneRect.y,
+            threshold,
+            cachedDropZoneRect.height
+        );
+        debugRenderer.rect(
+            cachedDropZoneRect[$cache.dimensionKey] - threshold + compOffset,
+            cachedDropZoneRect.y,
+            threshold,
+            cachedDropZoneRect.height
+        );
+        debugRenderer.stroke();
+        debugRenderer.beginPath();
+        debugRenderer.ellipse(
+            computeMidpoint($dragTarget.cachedRect).x,
+            computeMidpoint($dragTarget.cachedRect).y,
+            1,
+            1,
+            0,
+            0,
+            2 * Math.PI
+        );
+        debugRenderer.stroke();
         if (midpoint <= threshold + compOffset) {
+            const ratio = (midpoint - compOffset) / threshold;
             if (dragScrollTarget >= dragScrollCurrent) {
                 dragScrollTween = tweened(dragScrollCurrent, {
                     duration: $dragDropSettings.animationMs,
                 });
-                dragScrollTarget = dragScrollCurrent - 100;
+                dragScrollTarget =
+                    dragScrollCurrent -
+                    lerp(
+                        ratio,
+                        $dragDropSettings.defaults.maxDragScrollSpeed,
+                        $dragDropSettings.defaults.minDragScrollSpeed
+                    );
                 dragScrollTween.set(dragScrollTarget);
             }
         } else if (
             midpoint >=
             cachedDropZoneRect[$cache.dimensionKey] - threshold + compOffset
         ) {
+            const ratio =
+                (midpoint -
+                    (cachedDropZoneRect[$cache.dimensionKey] + compOffset)) /
+                threshold;
             if (dragScrollTarget <= dragScrollCurrent) {
                 dragScrollTween = tweened(dragScrollCurrent, {
                     duration: $dragDropSettings.animationMs,
                 });
-                dragScrollTarget = dragScrollCurrent + 100;
+                dragScrollTarget =
+                    dragScrollCurrent +
+                    lerp(
+                        ratio,
+                        $dragDropSettings.defaults.maxDragScrollSpeed,
+                        $dragDropSettings.defaults.minDragScrollSpeed
+                    );
                 dragScrollTween.set(dragScrollTarget);
             }
         } else {
@@ -613,8 +657,8 @@
             let updatedDisabled = false;
             if (
                 enableResizeListeners &&
-                (cachedDropZoneRect.width !== currentWidth ||
-                    cachedDropZoneRect.height !== currentHeight)
+                (cachedDropZoneRect?.width !== currentWidth ||
+                    cachedDropZoneRect?.height !== currentHeight)
             ) {
                 let bounding = dropZone.getBoundingClientRect();
                 cachedDropZoneRect = {
@@ -868,36 +912,6 @@
     }
 
     onMount(() => {
-        const bounding = dropZone.getBoundingClientRect();
-        if (enableResizeListeners) {
-            cachedDropZoneRect = {
-                x: bounding.left,
-                y: bounding.top,
-                width: currentWidth,
-                height: currentHeight,
-            };
-        } else {
-            cachedDropZoneRect = bounding;
-        }
-
-        $dropTargets = [
-            ...$dropTargets,
-            {
-                id,
-                key,
-                rect: cachedDropZoneRect,
-                dropElement: dropZone,
-                dropCallback,
-                hoverCallback,
-                prepareDropZone,
-                enterDropZone,
-                leaveDropZone,
-                hasItem,
-                getEventHandlers,
-                cleanupDropZone,
-                canDrop,
-            },
-        ];
         mounted = true;
     });
 

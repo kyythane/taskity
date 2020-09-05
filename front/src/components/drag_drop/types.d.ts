@@ -42,6 +42,8 @@ export type DragDropSettings = {
         disableDropSpacing: boolean,
         enableResizeListeners: boolean,
         direction: 'horizontal' | 'vertical',
+        minDragScrollSpeed: number,
+        maxDragScrollSpeed: number,
     }
     dragThresholdPixels: number,
     animationMs: number,
