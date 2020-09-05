@@ -5,6 +5,7 @@
     export let columnData: Array<CardData> = [];
     export let columnTitle: string;
     export let disabled: boolean = false;
+    export let key: string | undefined = undefined;
 </script>
 
 <!-- <section class="rounded-md border-2 border-gray-900 h-full w-64 bg-gray-100"> -->
@@ -17,6 +18,7 @@
         on:itemdroppedin
         on:itemdraggedout
         {disabled}
+        {key}
         enableResizeListeners
         direction="horizontal"
     >

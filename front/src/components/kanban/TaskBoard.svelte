@@ -1,6 +1,7 @@
 <script lang="ts">
     import TaskColumn from './TaskColumn.svelte';
     import { selectedTasks } from './stores';
+    import DropGroup from '../drag_drop/DropGroup.svelte';
     const num = 50;
     let todo = [...Array(num).keys()].map((i) => {
         return {
@@ -26,23 +27,29 @@
 </script>
 
 <!-- <section class="flex h-full w-full p-12"> -->
-<section class="h-full w-full p-12">
-    <TaskColumn
-        columnTitle="Todo"
-        columnData="{todo}"
-        on:itemdroppedin="{({ detail }) => (todo = detail.listSnapshot)}"
-        on:itemdraggedout="{({ detail }) => (todo = detail.listSnapshot)}"
-    />
-    <TaskColumn
-        columnTitle="In Progress"
-        columnData="{inProgress}"
-        on:itemdroppedin="{({ detail }) => (inProgress = detail.listSnapshot)}"
-        on:itemdraggedout="{({ detail }) => (inProgress = detail.listSnapshot)}"
-    />
-    <TaskColumn
-        columnTitle="Done"
-        columnData="{done}"
-        on:itemdroppedin="{({ detail }) => (done = detail.listSnapshot)}"
-        on:itemdraggedout="{({ detail }) => (done = detail.listSnapshot)}"
-    />
-</section>
+<DropGroup
+    on:dragcomplete="{({ detail }) => {
+        console.log(detail);
+    }}"
+>
+    <section class="h-full w-full p-12">
+        <TaskColumn
+            columnTitle="Todo"
+            columnData="{todo}"
+            on:itemdroppedin="{({ detail }) => (todo = detail.listSnapshot)}"
+            on:itemdraggedout="{({ detail }) => (todo = detail.listSnapshot)}"
+        />
+        <TaskColumn
+            columnTitle="In Progress"
+            columnData="{inProgress}"
+            on:itemdroppedin="{({ detail }) => (inProgress = detail.listSnapshot)}"
+            on:itemdraggedout="{({ detail }) => (inProgress = detail.listSnapshot)}"
+        />
+        <TaskColumn
+            columnTitle="Done"
+            columnData="{done}"
+            on:itemdroppedin="{({ detail }) => (done = detail.listSnapshot)}"
+            on:itemdraggedout="{({ detail }) => (done = detail.listSnapshot)}"
+        />
+    </section>
+</DropGroup>

@@ -23,7 +23,13 @@
 </style>
 
 <script lang="ts">
-    import { onMount, tick, onDestroy, createEventDispatcher } from 'svelte';
+    import {
+        onMount,
+        tick,
+        onDestroy,
+        createEventDispatcher,
+        getContext,
+    } from 'svelte';
     import { tweened } from 'svelte/motion';
     import { cubicOut } from 'svelte/easing';
     import {
@@ -59,6 +65,7 @@
         Rect,
         DropTarget,
         DropCallback,
+        DropGroup,
         HoverCallback,
         HoverResult,
     } from './types';
@@ -80,6 +87,10 @@
         sourceDropZone: number
     ) => boolean = () => true;
     export const id = dropTargetId.next();
+
+    const dropGroup: Writable<DropGroup> | undefined = getContext(
+        'reactive-drop-group'
+    );
 
     const debugRenderer = createDebugRender();
     const cache = createDropTargetCache({
@@ -111,6 +122,12 @@
     let currentDropTarget:
         | { dropTarget: DropTarget; hoverResult: HoverResult | undefined }
         | undefined = undefined;
+    let hierarchyKey: string | undefined = key ?? $dropGroup?.key;
+
+    $: {
+        hierarchyKey = key ?? $dropGroup?.key;
+    }
+
     const dispatch = createEventDispatcher();
 
     const moveDraggable = (event: MouseEvent) => {
@@ -146,7 +163,7 @@
             hoverEnterElementTween = undefined;
         }
         $dropTargets
-            .filter((target) => target.key === key)
+            .filter((target) => target.key === hierarchyKey)
             .forEach((target) => target.cleanupDropZone());
         $dragTarget = undefined;
     };
@@ -209,7 +226,7 @@
                 currentDropTarget.dropTarget.dropCallback(hoverResult);
                 // We only send drop events when reordering a list, since the element never really left
                 if (currentDropTarget.dropTarget.id !== id) {
-                    dispatch('itemdraggedout', {
+                    const dragOutResult = {
                         item: $dragTarget.item,
                         listSnapshot: [
                             ...$cache.items.filter(
@@ -218,7 +235,15 @@
                             ),
                         ],
                         destinationDropZone: currentDropTarget.dropTarget.id,
-                    });
+                    };
+                    if (!!$dropGroup && $dropGroup.key === hierarchyKey) {
+                        $dropGroup.onDragOut(
+                            dragOutResult.item,
+                            dragOutResult.listSnapshot,
+                            id
+                        );
+                    }
+                    dispatch('itemdraggedout', dragOutResult);
                 }
                 cleanupAfterDrag();
             } else {
@@ -231,6 +256,9 @@
                 }
                 // Tweened .set returns a promise that resolves, but our types don't show that
                 await dragTween.set({ x: 0, y: 0 });
+                if (!!$dropGroup && $dropGroup.key === hierarchyKey) {
+                    $dropGroup.onDragCancel($dragTarget.item);
+                }
                 dispatch('dragcancelled', {
                     item: $dragTarget.item,
                 });
@@ -291,6 +319,7 @@
                     item: $cache.items.find(
                         (c) => c.id === potentiallDraggedId
                     )!,
+                    key: hierarchyKey,
                     controllingDropZoneId: id,
                     dragElement: cloned,
                     sourceRect: containingElement.getBoundingClientRect(),
@@ -319,8 +348,11 @@
                 cachedDisplay = child.style.display;
                 child.style.display = 'none';
                 $dropTargets
-                    .filter((target) => target.key === key)
+                    .filter((target) => target.key === hierarchyKey)
                     .forEach((target) => target.prepareDropZone());
+                if (!!$dropGroup && $dropGroup.key === hierarchyKey) {
+                    $dropGroup.onDragStart();
+                }
                 await sourceElementTween.set(0);
                 $dragging = 'dragging';
                 cachedRects = [];
@@ -368,14 +400,25 @@
             currentlyDraggingOver = undefined;
             hoverEnterElementTween = undefined;
         }
-        dispatch('itemdroppedin', {
+        const dropInResult = {
             item: $dragTarget.item,
             index: finalIndex,
             insertedAfter:
                 finalIndex > 0 ? $cache.items[finalIndex - 1] : undefined,
             listSnapshot,
             sourceDropZone: $dragTarget.controllingDropZoneId,
-        });
+        };
+        if (!!$dropGroup && $dropGroup.key === hierarchyKey) {
+            $dropGroup.onDropIn(
+                dropInResult.item,
+                dropInResult.index,
+                dropInResult.insertedAfter,
+                dropInResult.listSnapshot,
+                dropInResult.sourceDropZone,
+                id
+            );
+        }
+        dispatch('itemdroppedin', dropInResult);
     };
 
     const startDragOver = (hoverResult: HoverResult) => {
@@ -507,6 +550,18 @@
             0,
             0,
             2 * Math.PI
+        );
+        console.log(
+            id,
+            midpoint,
+            midpoint <= threshold + compOffset &&
+                dragScrollTarget >= dragScrollCurrent,
+            midpoint >=
+                cachedDropZoneRect[$cache.dimensionKey] -
+                    threshold +
+                    compOffset && dragScrollTarget <= dragScrollCurrent,
+            dragScrollTarget,
+            dragScrollCurrent
         );
         debugRenderer.stroke();
         if (midpoint <= threshold + compOffset) {
@@ -675,7 +730,7 @@
                     ...$dropTargets.filter((dt) => dt.id !== id),
                     {
                         id,
-                        key,
+                        key: hierarchyKey,
                         rect: cachedDropZoneRect,
                         dropElement: dropZone,
                         dropCallback,
@@ -695,7 +750,7 @@
 
     // Update list of items
     $: {
-        if ($dragging === 'none' || key !== $dragTarget.key) {
+        if ($dragging === 'none' || hierarchyKey !== $dragTarget.key) {
             cache.set({
                 items,
                 direction,
@@ -812,7 +867,7 @@
     const canDrop = () => {
         return (
             !disabled &&
-            $dragTarget.key === key &&
+            $dragTarget.key === hierarchyKey &&
             capacity - $cache.items.length > 0 &&
             allowDrop($dragTarget.item, $dragTarget.controllingDropZoneId)
         );

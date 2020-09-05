@@ -1,5 +1,5 @@
 import { writable, Writable } from 'svelte/store';
-import type { DragDropSettings, DropTarget, DragTarget, DropTargetCache, Item } from './types';
+import type { DragDropSettings, DropTarget, DragTarget, DropTargetCache, Item, DropGroup } from './types';
 
 export const dragDropSettings: Writable<DragDropSettings> = writable({
     defaults: {
@@ -8,7 +8,7 @@ export const dragDropSettings: Writable<DragDropSettings> = writable({
         enableResizeListeners: false,
         direction: 'vertical',
         minDragScrollSpeed: 75,
-        maxDragScrollSpeed: 375,
+        maxDragScrollSpeed: 175,
     },
     dragThresholdPixels: 25,
     animationMs: 200,
@@ -48,7 +48,7 @@ export function createDropTargetCache(initialState: Pick<DropTargetCache, 'items
     }
 };
 
-function createDropTargetId() {
+function createAutoIncrementingId() {
     const { subscribe, update } = writable(0);
     return {
         subscribe,
@@ -62,6 +62,6 @@ function createDropTargetId() {
         }
     };
 }
-export const dropTargetId = createDropTargetId();
-
+export const dropTargetId = createAutoIncrementingId();
+export const dropGroupId = createAutoIncrementingId();
 

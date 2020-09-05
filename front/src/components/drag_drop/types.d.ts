@@ -34,7 +34,6 @@ export type DropTargetCache = {
     | { before: 'paddingTop'; after: 'paddingBottom' }
     | { before: 'paddingLeft'; after: 'paddingRight' },
 };
-
 export type DragTarget = { key?: string, item: Item, controllingDropZoneId: number, sourceRect: Rect, dragElement: HTMLDivElement, cachedRect: Rect };
 export type DragDropSettings = {
     defaults: {
@@ -50,4 +49,22 @@ export type DragDropSettings = {
     scrollOnDragThresholdPercent: number,
     scrollOnDragMinPixels: number,
     scrollOnDragMaxPixels: number,
+};
+export type DropGroup = {
+    key: string,
+    onDragStart: () => void,
+    onDropIn: (
+        item: Item,
+        index: number,
+        insertedAfter: Item | undefined,
+        listSnapshot: Item[],
+        sourceDropZoneId: number,
+        destinationDropZoneId: number
+    ) => void,
+    onDragOut: (
+        item: Item,
+        listSnapshot: Item[],
+        sourceDropZoneId: number,
+    ) => void,
+    onDragCancel: (item: Item) => void,
 };
