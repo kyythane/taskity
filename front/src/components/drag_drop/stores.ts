@@ -1,47 +1,5 @@
 import { writable, Writable } from 'svelte/store';
-
-export type Id = number | string;
-export type Item = { id: Id };
-export type DragEventHandlers = {
-    handleMouseDown: (event: MouseEvent, itemId: Id) => void;
-    handleMouseUp: (event: MouseEvent) => void;
-    handleMouseMove: (event: MouseEvent) => void;
-};
-export type HoverResult = { index: number, item: Item, element: HTMLDivElement, placement: 'before' | 'after' };
-export type DropCallback = (dragTarget: HoverResult | undefined) => void;
-export type HoverCallback = () => HoverResult | undefined;
-export type Position = { x: number, y: number };
-export type Rect = { x: number, y: number, width: number, height: number };
-export type DropTarget = {
-    id: number,
-    key?: string,
-    capacity: number,
-    disabled: boolean,
-    rect: Rect,
-    dropElement: HTMLDivElement,
-    dropCallback: DropCallback,
-    hoverCallback: HoverCallback,
-    prepareDropZone: () => void,
-    enterDropZone: () => void,
-    leaveDropZone: () => void,
-    hasItem: (itemId: Id) => boolean,
-    getEventHandlers: () => DragEventHandlers,
-    cleanupDropZone: () => void,
-};
-export type DragTarget = { key?: string, item: Item, controllingDropZoneId: number, sourceRect: Rect, dragElement: HTMLDivElement, cachedRect: Rect };
-export type DragDropSettings = {
-    defaults: {
-        disableScrollOnDrag: boolean,
-        disableDropSpacing: boolean,
-        enableResizeListeners: boolean,
-        direction: 'horizontal' | 'vertical',
-    }
-    dragThresholdPixels: number,
-    animationMs: number,
-    scrollOnDragThresholdPercent: number,
-    scrollOnDragMinPixels: number,
-    scrollOnDragMaxPixels: number,
-};
+import type { DragDropSettings, DropTarget, DragTarget, DropTargetCache, Item } from './types';
 
 export const dragDropSettings: Writable<DragDropSettings> = writable({
     defaults: {
@@ -59,7 +17,34 @@ export const dragDropSettings: Writable<DragDropSettings> = writable({
 export const dropTargets: Writable<Array<DropTarget>> = writable([]);
 export const dragging: Writable<'none' | 'picking-up' | 'dragging' | 'returning' | 'dropping'> = writable('none');
 export const dragTarget: Writable<DragTarget | undefined> = writable(undefined);
-export const dropTargetId = createDropTargetId();
+
+function getKeysForDirection(direction: 'horizontal' | 'vertical') {
+    return {
+        scrollKey: direction === 'vertical' ? 'scrollTop' : 'scrollLeft',
+        dimensionKey: direction === 'vertical' ? 'height' : 'width',
+        paddingKeys: direction === 'vertical' ? { before: 'paddingTop', after: 'paddingBottom' }
+            : { before: 'paddingLeft', after: 'paddingRight' },
+    };
+}
+export function createDropTargetCache(initialState: Pick<DropTargetCache, 'items' | 'direction'>) {
+    const { subscribe, set } = writable({
+        ...initialState,
+        ...getKeysForDirection(initialState.direction)
+    });
+    return {
+        subscribe,
+        set: ({
+            items,
+            direction
+        }: Pick<DropTargetCache, 'items' | 'direction'>) => {
+            set({
+                items,
+                direction,
+                ...getKeysForDirection(initialState.direction)
+            })
+        }
+    }
+};
 
 function createDropTargetId() {
     const { subscribe, update } = writable(0);
@@ -75,3 +60,6 @@ function createDropTargetId() {
         }
     };
 }
+export const dropTargetId = createDropTargetId();
+
+

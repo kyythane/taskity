@@ -47,6 +47,7 @@
         dragTarget,
         dropTargetId,
         dragDropSettings,
+        createDropTargetCache,
     } from './stores';
 
     import type { Writable } from 'svelte/store';
@@ -59,7 +60,7 @@
         DropCallback,
         HoverCallback,
         HoverResult,
-    } from './stores';
+    } from './types';
 
     export let items: Array<Item>;
     export let key: string | undefined = undefined;
@@ -73,15 +74,20 @@
         $dragDropSettings.defaults.enableResizeListeners;
     export let direction: 'horizontal' | 'vertical' =
         $dragDropSettings.defaults.direction;
+    export let allowDrop: (
+        item: Item,
+        sourceDropZone: number
+    ) => boolean = () => true;
     export const id = dropTargetId.next();
 
     //const debugRenderer = createDebugRender();
+    const cache = createDropTargetCache({
+        items: [],
+        direction,
+    });
 
-    let cachedItems: Array<Item> = [];
     let cachedRects: Array<Rect | undefined> = [];
     let cachedDropZoneRect: Rect;
-    let cachedCapacity = capacity;
-    let cachedDisabled = disabled;
     let cachedDisplay: string | undefined;
     let wrappingElements: { [id: string]: HTMLDivElement } = {};
     let dropZone: HTMLDivElement;
@@ -104,15 +110,6 @@
     let currentDropTarget:
         | { dropTarget: DropTarget; hoverResult: HoverResult | undefined }
         | undefined = undefined;
-    let scrollKey: 'scrollTop' | 'scrollLeft' = 'scrollTop';
-    let dimensionKey: 'height' | 'width' = 'height';
-    let paddingKeys:
-        | { before: 'paddingTop'; after: 'paddingBottom' }
-        | { before: 'paddingLeft'; after: 'paddingRight' } = {
-        before: 'paddingTop',
-        after: 'paddingBottom',
-    };
-    let cachedDirection: 'horizontal' | 'vertical' = 'horizontal';
     const dispatch = createEventDispatcher();
 
     const moveDraggable = (event: MouseEvent) => {
@@ -133,7 +130,7 @@
         document.body.removeChild($dragTarget.dragElement);
         let containingElement =
             wrappingElements[($dragTarget.item.id as unknown) as string];
-        containingElement.style[dimensionKey] = '';
+        containingElement.style[$cache.dimensionKey] = '';
         containingElement.style.paddingTop = '';
         containingElement.style.paddingBottom = '';
         containingElement.style.paddingLeft = '';
@@ -214,7 +211,7 @@
                     dispatch('itemdraggedout', {
                         item: $dragTarget.item,
                         listSnapshot: [
-                            ...cachedItems.filter(
+                            ...$cache.items.filter(
                                 (cachedItem) =>
                                     cachedItem.id !== $dragTarget.item.id
                             ),
@@ -225,7 +222,9 @@
                 cleanupAfterDrag();
             } else {
                 $dragging = 'returning';
-                sourceElementTween.set($dragTarget.sourceRect[dimensionKey]);
+                sourceElementTween.set(
+                    $dragTarget.sourceRect[$cache.dimensionKey]
+                );
                 if (!!currentlyDraggingOver) {
                     startDragOff();
                 }
@@ -245,8 +244,8 @@
         delayedEvent?: (event: MouseEvent) => void
     ) => {
         if (
-            !cachedDisabled &&
-            !!cachedItems.find((c) => c.id === id) &&
+            !disabled &&
+            !!$cache.items.find((c) => c.id === id) &&
             event.button === 0
         ) {
             draggableDragStart = { x: event.clientX, y: event.clientY };
@@ -288,7 +287,7 @@
                 );
                 document.body.append(cloned);
                 $dragTarget = {
-                    item: cachedItems.find(
+                    item: $cache.items.find(
                         (c) => c.id === potentiallDraggedId
                     )!,
                     controllingDropZoneId: id,
@@ -304,7 +303,7 @@
                     }
                 );
                 sourceElementTween = tweened(
-                    $dragTarget.sourceRect[dimensionKey],
+                    $dragTarget.sourceRect[$cache.dimensionKey],
                     {
                         duration: $dragDropSettings.animationMs,
                         easing: cubicOut,
@@ -312,8 +311,8 @@
                 );
                 updateContainingStyleSize(
                     containingElement,
-                    cachedDirection,
-                    $dragTarget.sourceRect[dimensionKey]
+                    $cache.direction,
+                    $dragTarget.sourceRect[$cache.dimensionKey]
                 );
                 const child = containingElement.children[0] as HTMLElement;
                 cachedDisplay = child.style.display;
@@ -329,7 +328,7 @@
     };
 
     const prepareDropZone = () => {
-        dragScrollCurrent = dropZone[scrollKey];
+        dragScrollCurrent = dropZone[$cache.scrollKey];
         potentiallDraggedId = undefined;
         handleDelayedEvent = undefined;
         currentlyDraggingOver = undefined;
@@ -349,10 +348,10 @@
             dropIndex = 0;
         }
         // Always filter because it isn't that expensive and it avoids special casing dropping back in the same list (as much as possible)
-        const firstSection = cachedItems
+        const firstSection = $cache.items
             .slice(0, dropIndex)
             .filter((cachedItem) => cachedItem.id !== $dragTarget.item.id);
-        const secondSection = cachedItems
+        const secondSection = $cache.items
             .slice(dropIndex)
             .filter((cachedItem) => cachedItem.id !== $dragTarget.item.id);
         const listSnapshot = [
@@ -372,7 +371,7 @@
             item: $dragTarget.item,
             index: finalIndex,
             insertedAfter:
-                finalIndex > 0 ? cachedItems[finalIndex - 1] : undefined,
+                finalIndex > 0 ? $cache.items[finalIndex - 1] : undefined,
             listSnapshot,
             sourceDropZone: $dragTarget.controllingDropZoneId,
         });
@@ -395,7 +394,7 @@
             const sizes = $hoverLeaveElementTweens;
             startingSize = Math.min(
                 sizes[draggedOffIndex],
-                $dragTarget.cachedRect[dimensionKey]
+                $dragTarget.cachedRect[$cache.dimensionKey]
             );
             const filteredSizes = sizes.filter(
                 (_, index) => index !== draggedOffIndex
@@ -414,7 +413,7 @@
             duration: $dragDropSettings.animationMs,
             easing: cubicOut,
         });
-        hoverEnterElementTween.set($dragTarget.cachedRect[dimensionKey]);
+        hoverEnterElementTween.set($dragTarget.cachedRect[$cache.dimensionKey]);
     };
 
     const startDragOff = () => {
@@ -446,7 +445,7 @@
                 ...previousTweenValues,
                 Math.min(
                     $hoverEnterElementTween,
-                    $dragTarget.cachedRect[dimensionKey]
+                    $dragTarget.cachedRect[$cache.dimensionKey]
                 ),
             ],
             {
@@ -468,17 +467,17 @@
             return;
         }
         const midpoint =
-            cachedDirection === 'horizontal'
+            $cache.direction === 'horizontal'
                 ? computeMidpoint($dragTarget.cachedRect).x
                 : computeMidpoint($dragTarget.cachedRect).y;
         const compOffset =
-            cachedDirection === 'horizontal'
+            $cache.direction === 'horizontal'
                 ? cachedDropZoneRect.x
                 : cachedDropZoneRect.y;
         let threshold = Math.min(
             Math.max(
                 $dragDropSettings.scrollOnDragThresholdPercent *
-                    cachedDropZoneRect[dimensionKey],
+                    cachedDropZoneRect[$cache.dimensionKey],
                 $dragDropSettings.scrollOnDragMinPixels
             ),
             $dragDropSettings.scrollOnDragMaxPixels
@@ -493,7 +492,7 @@
             }
         } else if (
             midpoint >=
-            cachedDropZoneRect[dimensionKey] - threshold + compOffset
+            cachedDropZoneRect[$cache.dimensionKey] - threshold + compOffset
         ) {
             if (dragScrollTarget <= dragScrollCurrent) {
                 dragScrollTween = tweened(dragScrollCurrent, {
@@ -509,14 +508,14 @@
     };
 
     const hoverCallback: HoverCallback = () => {
-        if (cachedItems.length === 0) {
+        if ($cache.items.length === 0) {
             return undefined;
         }
         checkScroll();
         let overlapped = false;
         const overlapping = [];
-        for (let index = 0; index < cachedItems.length; index++) {
-            const cachedItem = cachedItems[index];
+        for (let index = 0; index < $cache.items.length; index++) {
+            const cachedItem = $cache.items[index];
             const element =
                 wrappingElements[(cachedItem.id as unknown) as string];
             if (
@@ -533,7 +532,7 @@
             let placement = calculatePlacement(
                 rectWithoutPadding,
                 $dragTarget.cachedRect,
-                cachedDirection
+                $cache.direction
             );
             if (overlaps) {
                 overlapping.push({
@@ -549,8 +548,8 @@
         }
         // Since cachedItems must be non-empty. If nothing overlaps, we are past the end of the list.
         if (overlapping.length === 0) {
-            const lastIndex = cachedItems.length - 1;
-            const lastItem = cachedItems[lastIndex];
+            const lastIndex = $cache.items.length - 1;
+            const lastItem = $cache.items[lastIndex];
             overlapping.push({
                 index: lastIndex,
                 item: lastItem,
@@ -568,7 +567,7 @@
          */
         if (overlappedItem.placement === 'before' && overlappedItem.index > 0) {
             const indexBefore = overlappedItem.index - 1;
-            const itemBefore = cachedItems[indexBefore];
+            const itemBefore = $cache.items[indexBefore];
             overlappedItem = {
                 index: indexBefore,
                 item: itemBefore,
@@ -627,25 +626,13 @@
                 updatedRect = true;
             }
 
-            if (capacity - cachedItems.length !== cachedCapacity) {
-                cachedCapacity = Math.max(0, capacity - cachedItems.length);
-                updatedCapacity = true;
-            }
-
-            if (disabled !== cachedDisabled) {
-                cachedDisabled = disabled;
-                updatedDisabled = true;
-            }
-
             if (updatedRect || updatedCapacity || updatedDisabled) {
                 $dropTargets = [
                     ...$dropTargets.filter((dt) => dt.id !== id),
                     {
                         id,
                         key,
-                        capacity: cachedCapacity,
                         rect: cachedDropZoneRect,
-                        disabled: cachedDisabled,
                         dropElement: dropZone,
                         dropCallback,
                         hoverCallback,
@@ -655,6 +642,7 @@
                         hasItem,
                         getEventHandlers,
                         cleanupDropZone,
+                        canDrop,
                     },
                 ];
             }
@@ -664,16 +652,10 @@
     // Update list of items
     $: {
         if ($dragging === 'none' || key !== $dragTarget.key) {
-            cachedItems = [...items];
-            cachedDirection = direction;
-            scrollKey =
-                cachedDirection === 'horizontal' ? 'scrollLeft' : 'scrollTop';
-            dimensionKey =
-                cachedDirection === 'horizontal' ? 'width' : 'height';
-            paddingKeys =
-                cachedDirection === 'horizontal'
-                    ? { before: 'paddingLeft', after: 'paddingRight' }
-                    : { before: 'paddingTop', after: 'paddingBottom' };
+            cache.set({
+                items,
+                direction,
+            });
         }
     }
 
@@ -685,7 +667,7 @@
         ) {
             updateContainingStyleSize(
                 wrappingElements[$dragTarget.item.id],
-                cachedDirection,
+                $cache.direction,
                 $sourceElementTween
             );
         }
@@ -697,15 +679,15 @@
             const offset = $hoverEnterElementTween;
             const lastOffset = pixelStringToNumber(
                 currentlyDraggingOver.element.style[
-                    paddingKeys[currentlyDraggingOver.placement]
+                    $cache.paddingKeys[currentlyDraggingOver.placement]
                 ]
             );
             currentlyDraggingOver.element.style[
-                paddingKeys[currentlyDraggingOver.placement]
+                $cache.paddingKeys[currentlyDraggingOver.placement]
             ] = `${offset}px`;
             const delta = offset - lastOffset;
             const offsetPosition =
-                cachedDirection === 'horizontal'
+                $cache.direction === 'horizontal'
                     ? { x: delta, y: 0 }
                     : { x: 0, y: delta };
             if (cachedRects.length >= currentlyDraggingOver.index) {
@@ -725,7 +707,7 @@
             const deltas: Array<{ index: number; delta: number }> = [];
             const previousSizes = previouslyDraggedOver.map((target) => {
                 return pixelStringToNumber(
-                    target.element.style[paddingKeys[target.placement]]
+                    target.element.style[$cache.paddingKeys[target.placement]]
                 );
             });
             previouslyDraggedOver = previouslyDraggedOver.map(
@@ -733,7 +715,7 @@
                     const delta = sizes[index] - previousSizes[index];
                     deltas.push({ index: target.index, delta });
                     target.element.style[
-                        paddingKeys[target.placement]
+                        $cache.paddingKeys[target.placement]
                     ] = `${sizes[index]}px`;
                     return target;
                 }
@@ -758,7 +740,7 @@
             deltas.forEach(({ index, delta }) => {
                 if (cachedRects.length >= index) {
                     const offsetPosition =
-                        cachedDirection === 'horizontal'
+                        $cache.direction === 'horizontal'
                             ? { x: delta, y: 0 }
                             : { x: 0, y: delta };
                     cachedRects = growOrShrinkRectInList(
@@ -772,7 +754,7 @@
     }
 
     const hasItem = (itemId: Id) => {
-        return !!cachedItems.find((c) => c.id === itemId);
+        return !!$cache.items.find((c) => c.id === itemId);
     };
 
     const getEventHandlers = () => {
@@ -783,14 +765,23 @@
         };
     };
 
+    const canDrop = () => {
+        return (
+            !disabled &&
+            $dragTarget.key === key &&
+            capacity - $cache.items.length > 0 &&
+            allowDrop($dragTarget.item, $dragTarget.controllingDropZoneId)
+        );
+    };
+
     const postScrollUpdate = async () => {
         const previous = dragScrollCurrent;
         await tick();
-        dragScrollCurrent = dropZone[scrollKey];
+        dragScrollCurrent = dropZone[$cache.scrollKey];
         const delta = dragScrollCurrent - previous;
         if (delta !== 0) {
             const offsetPosition =
-                cachedDirection === 'horizontal'
+                $cache.direction === 'horizontal'
                     ? { x: -delta, y: 0 }
                     : { x: 0, y: -delta };
             cachedRects = translateRectsBy(cachedRects, 0, offsetPosition);
@@ -805,7 +796,7 @@
     // Update scroll
     $: {
         if ($dragging === 'dragging' && !!dragScrollTween) {
-            dropZone[scrollKey] = $dragScrollTween;
+            dropZone[$cache.scrollKey] = $dragScrollTween;
             postScrollUpdate();
         }
     }
@@ -826,51 +817,32 @@
                 });
             }
             if ($dragging === 'dragging') {
-                let validTargets = $dropTargets.filter(
-                    (target) =>
-                        !target.disabled &&
-                        $dragTarget.key === target.key &&
-                        target.capacity > 0
-                );
-
-                let overlapping:
-                    | {
-                          target: DropTarget;
-                          overlap: { overlapX: number; overlapY: number };
-                      }
-                    | undefined;
-                /* Can't call reduce (without an initial value) on an empty array, so check that we have something 
-                in it before doing the overlap check */
-                if (validTargets.length === 0) {
-                    overlapping = undefined;
-                } else {
-                    overlapping = validTargets
-                        .map((target) => {
-                            return {
-                                target,
-                                overlap: percentOverlap(
-                                    $dragTarget.cachedRect,
-                                    target.rect
-                                ),
-                            };
-                        })
-                        .reduce((acc, next) => {
-                            if (
-                                next.overlap.overlapX > acc.overlap.overlapX ||
-                                next.overlap.overlapY > acc.overlap.overlapY
-                            ) {
-                                return next;
-                            }
-                            return acc;
-                        });
-                }
-
-                //console.log(currentDropTarget);
-                if (
-                    overlapping &&
+                const overlapping = $dropTargets
+                    .map((target) => {
+                        return {
+                            target,
+                            overlap: percentOverlap(
+                                $dragTarget.cachedRect,
+                                target.rect
+                            ),
+                        };
+                    })
+                    .reduce((acc, next) => {
+                        if (
+                            next.overlap.overlapX > acc.overlap.overlapX ||
+                            next.overlap.overlapY > acc.overlap.overlapY
+                        ) {
+                            return next;
+                        }
+                        return acc;
+                    });
+                const hasDropTarget =
                     overlapping.overlap.overlapX > 0 &&
-                    overlapping.overlap.overlapY > 0
-                ) {
+                    overlapping.overlap.overlapY > 0;
+
+                const valid = hasDropTarget && overlapping.target.canDrop();
+
+                if (valid) {
                     if (
                         !!currentDropTarget &&
                         currentDropTarget.dropTarget.id !==
@@ -897,8 +869,6 @@
 
     onMount(() => {
         const bounding = dropZone.getBoundingClientRect();
-        cachedDisabled = disabled;
-        cachedCapacity = capacity - items.length;
         if (enableResizeListeners) {
             cachedDropZoneRect = {
                 x: bounding.left,
@@ -915,9 +885,7 @@
             {
                 id,
                 key,
-                capacity: cachedCapacity,
                 rect: cachedDropZoneRect,
-                disabled: cachedDisabled,
                 dropElement: dropZone,
                 dropCallback,
                 hoverCallback,
@@ -927,6 +895,7 @@
                 hasItem,
                 getEventHandlers,
                 cleanupDropZone,
+                canDrop,
             },
         ];
         mounted = true;
@@ -953,9 +922,9 @@
         bind:this="{dropZone}"
         bind:clientWidth="{currentWidth}"
         bind:clientHeight="{currentHeight}"
-        class="{`dropContainer ${cachedDirection === 'horizontal' ? 'horizontal' : 'vertical'}`}"
+        class="{`dropContainer ${$cache.direction === 'horizontal' ? 'horizontal' : 'vertical'}`}"
     >
-        {#each cachedItems as item (item.id)}
+        {#each $cache.items as item (item.id)}
             <div bind:this="{wrappingElements[item.id]}" class="dragContainer">
                 <slot
                     name="listItem"
@@ -967,9 +936,9 @@
 {:else}
     <div
         bind:this="{dropZone}"
-        class="{`dropContainer ${cachedDirection === 'horizontal' ? 'horizontal' : 'vertical'}`}"
+        class="{`dropContainer ${$cache.direction === 'horizontal' ? 'horizontal' : 'vertical'}`}"
     >
-        {#each cachedItems as item (item.id)}
+        {#each $cache.items as item (item.id)}
             <div bind:this="{wrappingElements[item.id]}" class="dragContainer">
                 <slot
                     name="listItem"

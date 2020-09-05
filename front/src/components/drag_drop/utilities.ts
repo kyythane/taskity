@@ -1,4 +1,4 @@
-import type { Rect, HoverResult, Position, Id } from "./stores";
+import type { Rect, HoverResult, Position, Id } from "./types";
 
 export function createDebugRender() {
     let canvas = document.getElementsByTagName('canvas')[0];

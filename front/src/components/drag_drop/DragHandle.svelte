@@ -9,7 +9,7 @@
 </style>
 
 <script lang="ts">
-    import type { Id, DropTarget } from './stores';
+    import type { Id, DropTarget } from './types';
     import { dropTargets } from './stores';
 
     export let itemId: Id;
