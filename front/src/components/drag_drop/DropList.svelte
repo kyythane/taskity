@@ -100,6 +100,7 @@
     let hoverLeaveElementTweens: Writable<number[]> | undefined = undefined;
     let dragScrollTween: Writable<number> | undefined = undefined;
     let dragScrollTarget: number;
+    let dragScrollCurrent: number;
     let currentDropTarget:
         | { dropTarget: DropTarget; hoverResult: HoverResult | undefined }
         | undefined = undefined;
@@ -302,11 +303,6 @@
                         easing: cubicOut,
                     }
                 );
-                potentiallDraggedId = undefined;
-                handleDelayedEvent = undefined;
-                currentlyDraggingOver = undefined;
-                currentDropTarget = undefined;
-                previouslyDraggedOver = [];
                 sourceElementTween = tweened(
                     $dragTarget.sourceRect[dimensionKey],
                     {
@@ -322,11 +318,23 @@
                 const child = containingElement.children[0] as HTMLElement;
                 cachedDisplay = child.style.display;
                 child.style.display = 'none';
+                $dropTargets
+                    .filter((target) => target.key === key)
+                    .forEach((target) => target.prepareDropZone());
                 await sourceElementTween.set(0);
                 $dragging = 'dragging';
                 cachedRects = [];
             }
         }
+    };
+
+    const prepareDropZone = () => {
+        dragScrollCurrent = dropZone[scrollKey];
+        potentiallDraggedId = undefined;
+        handleDelayedEvent = undefined;
+        currentlyDraggingOver = undefined;
+        currentDropTarget = undefined;
+        previouslyDraggedOver = [];
     };
 
     const dropCallback: DropCallback = (drop: HoverResult | undefined) => {
@@ -456,7 +464,7 @@
     const checkScroll = () => {
         if (disableScrollOnDrag) {
             dragScrollTween = undefined;
-            dragScrollTarget = dropZone[scrollKey];
+            dragScrollTarget = dragScrollCurrent;
             return;
         }
         const midpoint =
@@ -476,27 +484,27 @@
             $dragDropSettings.scrollOnDragMaxPixels
         );
         if (midpoint <= threshold + compOffset) {
-            if (dragScrollTarget >= dropZone[scrollKey]) {
-                dragScrollTween = tweened(dropZone[scrollKey], {
+            if (dragScrollTarget >= dragScrollCurrent) {
+                dragScrollTween = tweened(dragScrollCurrent, {
                     duration: $dragDropSettings.animationMs,
                 });
-                dragScrollTarget = dropZone[scrollKey] - 100;
+                dragScrollTarget = dragScrollCurrent - 100;
                 dragScrollTween.set(dragScrollTarget);
             }
         } else if (
             midpoint >=
             cachedDropZoneRect[dimensionKey] - threshold + compOffset
         ) {
-            if (dragScrollTarget <= dropZone[scrollKey]) {
-                dragScrollTween = tweened(dropZone[scrollKey], {
+            if (dragScrollTarget <= dragScrollCurrent) {
+                dragScrollTween = tweened(dragScrollCurrent, {
                     duration: $dragDropSettings.animationMs,
                 });
-                dragScrollTarget = dropZone[scrollKey] + 100;
+                dragScrollTarget = dragScrollCurrent + 100;
                 dragScrollTween.set(dragScrollTarget);
             }
         } else {
             dragScrollTween = undefined;
-            dragScrollTarget = dropZone[scrollKey];
+            dragScrollTarget = dragScrollCurrent;
         }
     };
 
@@ -641,6 +649,7 @@
                         dropElement: dropZone,
                         dropCallback,
                         hoverCallback,
+                        prepareDropZone,
                         enterDropZone,
                         leaveDropZone,
                         hasItem,
@@ -714,12 +723,14 @@
         if (previouslyDraggedOver.length > 0 && !!hoverLeaveElementTweens) {
             const sizes = $hoverLeaveElementTweens;
             const deltas: Array<{ index: number; delta: number }> = [];
+            const previousSizes = previouslyDraggedOver.map((target) => {
+                return pixelStringToNumber(
+                    target.element.style[paddingKeys[target.placement]]
+                );
+            });
             previouslyDraggedOver = previouslyDraggedOver.map(
                 (target, index) => {
-                    const lastSize = pixelStringToNumber(
-                        target.element.style[paddingKeys[target.placement]]
-                    );
-                    const delta = sizes[index] - lastSize;
+                    const delta = sizes[index] - previousSizes[index];
                     deltas.push({ index: target.index, delta });
                     target.element.style[
                         paddingKeys[target.placement]
@@ -772,9 +783,11 @@
         };
     };
 
-    const postScrollUpdate = async (previous: number) => {
+    const postScrollUpdate = async () => {
+        const previous = dragScrollCurrent;
         await tick();
-        const delta = dropZone[scrollKey] - previous;
+        dragScrollCurrent = dropZone[scrollKey];
+        const delta = dragScrollCurrent - previous;
         if (delta !== 0) {
             const offsetPosition =
                 cachedDirection === 'horizontal'
@@ -782,7 +795,7 @@
                     : { x: 0, y: -delta };
             cachedRects = translateRectsBy(cachedRects, 0, offsetPosition);
         }
-        if (dropZone[scrollKey] === dragScrollTarget) {
+        if (dragScrollCurrent === dragScrollTarget) {
             checkScroll();
         }
         // TODO: I think this is part of the padding bug, but we need to run the
@@ -792,9 +805,8 @@
     // Update scroll
     $: {
         if ($dragging === 'dragging' && !!dragScrollTween) {
-            const previous = dropZone[scrollKey];
             dropZone[scrollKey] = $dragScrollTween;
-            postScrollUpdate(previous);
+            postScrollUpdate();
         }
     }
 
@@ -909,6 +921,7 @@
                 dropElement: dropZone,
                 dropCallback,
                 hoverCallback,
+                prepareDropZone,
                 enterDropZone,
                 leaveDropZone,
                 hasItem,

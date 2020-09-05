@@ -21,6 +21,7 @@ export type DropTarget = {
     dropElement: HTMLDivElement,
     dropCallback: DropCallback,
     hoverCallback: HoverCallback,
+    prepareDropZone: () => void,
     enterDropZone: () => void,
     leaveDropZone: () => void,
     hasItem: (itemId: Id) => boolean,
