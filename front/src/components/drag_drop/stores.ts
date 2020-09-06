@@ -7,14 +7,14 @@ export const dragDropSettings: Writable<DragDropSettings> = writable({
         disableDropSpacing: false,
         enableResizeListeners: false,
         direction: 'vertical',
-        minDragScrollSpeed: 75,
-        maxDragScrollSpeed: 175,
     },
     dragThresholdPixels: 25,
     animationMs: 200,
     scrollOnDragThresholdPercent: 0.1,
     scrollOnDragMinPixels: 50,
     scrollOnDragMaxPixels: 150,
+    minDragScrollSpeed: 75,
+    maxDragScrollSpeed: 175,
 });
 export const dropTargets: Writable<Array<DropTarget>> = writable([]);
 export const dragging: Writable<'none' | 'picking-up' | 'dragging' | 'returning' | 'dropping'> = writable('none');

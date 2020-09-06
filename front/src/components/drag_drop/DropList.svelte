@@ -88,9 +88,7 @@
     ) => boolean = () => true;
     export const id = dropTargetId.next();
 
-    const dropGroup: Writable<DropGroup> | undefined = getContext(
-        'reactive-drop-group'
-    );
+    const dropGroup: DropGroup | undefined = getContext('reactive-drop-group');
 
     const debugRenderer = createDebugRender();
     const cache = createDropTargetCache({
@@ -122,10 +120,10 @@
     let currentDropTarget:
         | { dropTarget: DropTarget; hoverResult: HoverResult | undefined }
         | undefined = undefined;
-    let hierarchyKey: string | undefined = key ?? $dropGroup?.key;
+    let hierarchyKey: string | undefined = key ?? dropGroup?.key;
 
     $: {
-        hierarchyKey = key ?? $dropGroup?.key;
+        hierarchyKey = key ?? dropGroup?.key;
     }
 
     const dispatch = createEventDispatcher();
@@ -236,8 +234,8 @@
                         ],
                         destinationDropZone: currentDropTarget.dropTarget.id,
                     };
-                    if (!!$dropGroup && $dropGroup.key === hierarchyKey) {
-                        $dropGroup.onDragOut(
+                    if (!!dropGroup && dropGroup.key === hierarchyKey) {
+                        dropGroup.onDragOut(
                             dragOutResult.item,
                             dragOutResult.listSnapshot,
                             id
@@ -256,8 +254,8 @@
                 }
                 // Tweened .set returns a promise that resolves, but our types don't show that
                 await dragTween.set({ x: 0, y: 0 });
-                if (!!$dropGroup && $dropGroup.key === hierarchyKey) {
-                    $dropGroup.onDragCancel($dragTarget.item);
+                if (!!dropGroup && dropGroup.key === hierarchyKey) {
+                    dropGroup.onDragCancel($dragTarget.item);
                 }
                 dispatch('dragcancelled', {
                     item: $dragTarget.item,
@@ -350,8 +348,8 @@
                 $dropTargets
                     .filter((target) => target.key === hierarchyKey)
                     .forEach((target) => target.prepareDropZone());
-                if (!!$dropGroup && $dropGroup.key === hierarchyKey) {
-                    $dropGroup.onDragStart();
+                if (!!dropGroup && dropGroup.key === hierarchyKey) {
+                    dropGroup.onDragStart();
                 }
                 await sourceElementTween.set(0);
                 $dragging = 'dragging';
@@ -408,8 +406,8 @@
             listSnapshot,
             sourceDropZone: $dragTarget.controllingDropZoneId,
         };
-        if (!!$dropGroup && $dropGroup.key === hierarchyKey) {
-            $dropGroup.onDropIn(
+        if (!!dropGroup && dropGroup.key === hierarchyKey) {
+            dropGroup.onDropIn(
                 dropInResult.item,
                 dropInResult.index,
                 dropInResult.insertedAfter,
@@ -554,29 +552,33 @@
         console.log(
             id,
             midpoint,
-            midpoint <= threshold + compOffset &&
-                dragScrollTarget >= dragScrollCurrent,
+            midpoint <= threshold + compOffset,
             midpoint >=
                 cachedDropZoneRect[$cache.dimensionKey] -
                     threshold +
-                    compOffset && dragScrollTarget <= dragScrollCurrent,
+                    compOffset,
+            cachedDropZoneRect[$cache.dimensionKey] - threshold + compOffset,
             dragScrollTarget,
             dragScrollCurrent
         );
         debugRenderer.stroke();
         if (midpoint <= threshold + compOffset) {
-            const ratio = (midpoint - compOffset) / threshold;
+            const ratio = 1 - (midpoint - compOffset) / threshold;
+            console.log('a', ratio);
             if (dragScrollTarget >= dragScrollCurrent) {
                 dragScrollTween = tweened(dragScrollCurrent, {
                     duration: $dragDropSettings.animationMs,
                 });
-                dragScrollTarget =
+                /* Use truncation rather than floor because it is more consistent 
+                   Math.trunc(1.1) === 1, Math.trunc(-1.1) === -1 */
+                dragScrollTarget = Math.trunc(
                     dragScrollCurrent -
-                    lerp(
-                        ratio,
-                        $dragDropSettings.defaults.maxDragScrollSpeed,
-                        $dragDropSettings.defaults.minDragScrollSpeed
-                    );
+                        lerp(
+                            ratio,
+                            $dragDropSettings.minDragScrollSpeed,
+                            $dragDropSettings.maxDragScrollSpeed
+                        )
+                );
                 dragScrollTween.set(dragScrollTarget);
             }
         } else if (
@@ -585,19 +587,22 @@
         ) {
             const ratio =
                 (midpoint -
-                    (cachedDropZoneRect[$cache.dimensionKey] + compOffset)) /
+                    (cachedDropZoneRect[$cache.dimensionKey] -
+                        threshold +
+                        compOffset)) /
                 threshold;
+            console.log('b', ratio);
             if (dragScrollTarget <= dragScrollCurrent) {
                 dragScrollTween = tweened(dragScrollCurrent, {
                     duration: $dragDropSettings.animationMs,
                 });
                 dragScrollTarget =
-                    dragScrollCurrent +
+                Math.trunc(dragScrollCurrent +
                     lerp(
                         ratio,
-                        $dragDropSettings.defaults.maxDragScrollSpeed,
-                        $dragDropSettings.defaults.minDragScrollSpeed
-                    );
+                        $dragDropSettings.minDragScrollSpeed,
+                        $dragDropSettings.maxDragScrollSpeed
+                    ));
                 dragScrollTween.set(dragScrollTarget);
             }
         } else {

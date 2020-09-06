@@ -4,9 +4,7 @@
     import type { Writable } from 'svelte/store';
     import type { DropGroup, Item } from './types';
     import { dropGroupId } from './stores';
-    export let key: string | undefined = undefined;
-    const id = dropGroupId.next();
-
+    const key: string = `drop-group-${dropGroupId.next()}`;
     let sourceResult:
         | {
               item: Item;
@@ -72,18 +70,13 @@
         sourceResult = undefined;
         destinationResult = undefined;
     };
-    const dropGroup: Writable<DropGroup> = writable({
-        key: key ?? `drop-group-${id}`,
+    const dropGroup: DropGroup = {
+        key,
         onDragStart,
         onDropIn,
         onDragOut,
         onDragCancel,
-    });
-
-    $: {
-        dropGroup.update((d) => ({ ...d, key: key ?? `drop-group-${id}` }));
-    }
-
+    };
     setContext('reactive-drop-group', dropGroup);
 </script>
 

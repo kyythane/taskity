@@ -18,10 +18,12 @@
     let dropZone: DropTarget;
 
     $: {
+        // This is fairly naive, but in 95% of cases it should be "fine"
         dropZone = $dropTargets.find((target) => target.hasItem(itemId));
     }
 </script>
 
+<!--The id is used by DropList to set the cursor on its clone of the DragHandle's Elements-->
 <div
     id="{`reactive-dnd-drag-handle-${itemId}`}"
     on:mousedown="{(event) => {

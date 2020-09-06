@@ -41,14 +41,14 @@ export type DragDropSettings = {
         disableDropSpacing: boolean,
         enableResizeListeners: boolean,
         direction: 'horizontal' | 'vertical',
-        minDragScrollSpeed: number,
-        maxDragScrollSpeed: number,
     }
     dragThresholdPixels: number,
     animationMs: number,
     scrollOnDragThresholdPercent: number,
     scrollOnDragMinPixels: number,
     scrollOnDragMaxPixels: number,
+    minDragScrollSpeed: number,
+    maxDragScrollSpeed: number,
 };
 export type DropGroup = {
     key: string,
