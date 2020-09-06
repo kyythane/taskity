@@ -1,27 +1,5 @@
 import type { Rect, HoverResult, Position, Id } from "./types";
 
-export function createDebugRender() {
-    let canvas = document.getElementsByTagName('canvas')[0];
-    if (!!canvas) {
-        return canvas.getContext('2d');
-    }
-    canvas = document.createElement('canvas'); //Create a canvas element
-    //Set canvas width/height
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-    //Set canvas drawing area width/height
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    //Position canvas
-    canvas.style.position = 'absolute';
-    canvas.style.left = '0px';
-    canvas.style.top = '0px';
-    canvas.style.zIndex = '100000';
-    canvas.style.pointerEvents = 'none'; //Make sure you can click 'through' the canvas
-    document.body.appendChild(canvas); //Append canvas to body element
-    return canvas.getContext('2d');
-}
-
 export function makeDraggableElement(originalElement: HTMLDivElement, id: Id) {
     const rect = originalElement.getBoundingClientRect();
     const draggedEl = originalElement.cloneNode(true) as HTMLDivElement;

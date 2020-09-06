@@ -33,7 +33,6 @@
     import { tweened } from 'svelte/motion';
     import { cubicOut } from 'svelte/easing';
     import {
-        createDebugRender,
         computeMidpoint,
         makeDraggableElement,
         calculatePlacement,
@@ -90,7 +89,6 @@
 
     const dropGroup: DropGroup | undefined = getContext('reactive-drop-group');
 
-    const debugRenderer = createDebugRender();
     const cache = createDropTargetCache({
         items: [],
         direction,
@@ -121,6 +119,7 @@
         | { dropTarget: DropTarget; hoverResult: HoverResult | undefined }
         | undefined = undefined;
     let hierarchyKey: string | undefined = key ?? dropGroup?.key;
+    let active: boolean = false;
 
     $: {
         hierarchyKey = key ?? dropGroup?.key;
@@ -175,6 +174,7 @@
         cachedDisplay = undefined;
         currentDropTarget = undefined;
         dragScrollTween = undefined;
+        active = false;
     };
 
     const endDrag = async (event: MouseEvent) => {
@@ -345,6 +345,7 @@
                 const child = containingElement.children[0] as HTMLElement;
                 cachedDisplay = child.style.display;
                 child.style.display = 'none';
+                active = true;
                 $dropTargets
                     .filter((target) => target.key === hierarchyKey)
                     .forEach((target) => target.prepareDropZone());
@@ -360,6 +361,7 @@
 
     const prepareDropZone = () => {
         dragScrollCurrent = dropZone[$cache.scrollKey];
+        dragScrollTarget = dragScrollCurrent;
         potentiallDraggedId = undefined;
         handleDelayedEvent = undefined;
         currentlyDraggingOver = undefined;
@@ -524,47 +526,8 @@
             ),
             $dragDropSettings.scrollOnDragMaxPixels
         );
-        debugRenderer.clearRect(0, 0, window.innerWidth, window.innerHeight);
-        debugRenderer.beginPath();
-        debugRenderer.rect(
-            compOffset,
-            cachedDropZoneRect.y,
-            threshold,
-            cachedDropZoneRect.height
-        );
-        debugRenderer.rect(
-            cachedDropZoneRect[$cache.dimensionKey] - threshold + compOffset,
-            cachedDropZoneRect.y,
-            threshold,
-            cachedDropZoneRect.height
-        );
-        debugRenderer.stroke();
-        debugRenderer.beginPath();
-        debugRenderer.ellipse(
-            computeMidpoint($dragTarget.cachedRect).x,
-            computeMidpoint($dragTarget.cachedRect).y,
-            1,
-            1,
-            0,
-            0,
-            2 * Math.PI
-        );
-        console.log(
-            id,
-            midpoint,
-            midpoint <= threshold + compOffset,
-            midpoint >=
-                cachedDropZoneRect[$cache.dimensionKey] -
-                    threshold +
-                    compOffset,
-            cachedDropZoneRect[$cache.dimensionKey] - threshold + compOffset,
-            dragScrollTarget,
-            dragScrollCurrent
-        );
-        debugRenderer.stroke();
         if (midpoint <= threshold + compOffset) {
             const ratio = 1 - (midpoint - compOffset) / threshold;
-            console.log('a', ratio);
             if (dragScrollTarget >= dragScrollCurrent) {
                 dragScrollTween = tweened(dragScrollCurrent, {
                     duration: $dragDropSettings.animationMs,
@@ -591,18 +554,18 @@
                         threshold +
                         compOffset)) /
                 threshold;
-            console.log('b', ratio);
             if (dragScrollTarget <= dragScrollCurrent) {
                 dragScrollTween = tweened(dragScrollCurrent, {
                     duration: $dragDropSettings.animationMs,
                 });
-                dragScrollTarget =
-                Math.trunc(dragScrollCurrent +
-                    lerp(
-                        ratio,
-                        $dragDropSettings.minDragScrollSpeed,
-                        $dragDropSettings.maxDragScrollSpeed
-                    ));
+                dragScrollTarget = Math.trunc(
+                    dragScrollCurrent +
+                        lerp(
+                            ratio,
+                            $dragDropSettings.minDragScrollSpeed,
+                            $dragDropSettings.maxDragScrollSpeed
+                        )
+                );
                 dragScrollTween.set(dragScrollTarget);
             }
         } else {
@@ -692,6 +655,7 @@
     };
 
     const enterDropZone = () => {
+        active = true;
         dispatch('dropzoneenter', {
             item: $dragTarget.item,
             rect: $dragTarget.cachedRect,
@@ -699,9 +663,11 @@
     };
 
     const leaveDropZone = () => {
+        active = false;
         if (!!currentlyDraggingOver) {
             startDragOff();
         }
+        dragScrollTarget = dragScrollCurrent;
         dragScrollTween = undefined;
         dispatch('dropzoneleave', {
             item: $dragTarget.item,
@@ -893,8 +859,10 @@
         if (dragScrollCurrent === dragScrollTarget) {
             checkScroll();
         }
-        // TODO: I think this is part of the padding bug, but we need to run the
-        hoverCallback();
+        if (active) {
+            // TODO: I think this is part of the padding bug, but we need to run the
+            hoverCallback();
+        }
     };
 
     // Update scroll
