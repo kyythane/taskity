@@ -1,7 +1,8 @@
 <script lang="ts">
+    import { DropGroup } from 'svelte-reactive-dnd';
+
     import TaskColumn from './TaskColumn.svelte';
     import { selectedTasks } from './stores';
-    import DropGroup from '../drag_drop/DropGroup.svelte';
     const num = 50;
     let todo = [...Array(num).keys()].map((i) => {
         return {

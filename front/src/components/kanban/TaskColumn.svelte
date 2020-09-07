@@ -1,7 +1,7 @@
 <script lang="ts">
+    import { DropList } from 'svelte-reactive-dnd';
     import type { CardData } from './CardData';
     import TaskCard from './TaskCard.svelte';
-    import DropList from '../drag_drop/DropList.svelte';
     export let columnData: Array<CardData> = [];
     export let columnTitle: string;
     export let disabled: boolean = false;

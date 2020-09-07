@@ -14,7 +14,7 @@
     "check:svelte": "svelte-check",
     "check:type": "tsc -p ./tsconfig.json",
     "check:lint": "eslint",
-    "fix:lint": "esling --fix",
+    "fix:lint": "eslint --fix",
     "dev": "run-p routify rollup",
     "rollup": "rollup -cw",
     "routify": "routify",
@@ -65,6 +65,7 @@
     "js-cookie": "^2.2.1",
     "phoenix": "^1.5.4",
     "sirv-cli": "^1.0.0",
-    "svelte-apollo": "^0.3.0"
+    "svelte-apollo": "^0.3.0",
+    "svelte-reactive-dnd": "^0.1.0"
   }
 }
