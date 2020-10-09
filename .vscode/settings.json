@@ -1,7 +1,4 @@
 {
-    "elixirLS": {
-        "projectDir": "back/app",
-    },
     "files.exclude": {
         "**/*.js": {
             "when": "$(basename).ts"

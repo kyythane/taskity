@@ -15,6 +15,7 @@
     {/if}
     <DropList
         items="{columnData}"
+        identifier="{columnTitle}"
         on:itemdroppedin
         on:itemdraggedout
         {disabled}

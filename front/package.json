@@ -66,6 +66,6 @@
     "phoenix": "^1.5.4",
     "sirv-cli": "^1.0.0",
     "svelte-apollo": "^0.3.0",
-    "svelte-reactive-dnd": "^0.1.0"
+    "svelte-reactive-dnd": "^0.4.0"
   }
 }
